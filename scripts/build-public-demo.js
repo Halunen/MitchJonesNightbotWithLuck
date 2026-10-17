@@ -36,7 +36,7 @@ html = html.replace('Local bot connection', 'Your browser sandbox');
 html = html.replace('Saved automatically per channel.', 'Saved only in this browser.');
 html = html.replace('Viewers: type !luck in chat (Read + Write required).', 'Demo entrants are simulated; no Twitch connection is needed.');
 html = html.replace('<script src="./app/app.js">', '<script src="./app/engine.js"></script><script src="./app/paid-winners.js"></script><script src="./app/demo-api.js"></script><script src="./app/app.js">');
-html = html.replace('Independent bot · Not affiliated with Nightbot or Twitch', 'Sample data only · <a href="https://github.com/Halunen/MitchJonesNightbotWithLuck#readme" target="_blank" rel="noopener noreferrer">Source &amp; README</a>');
+html = html.replace('Independent bot · Not affiliated with Nightbot or Twitch', 'Sample data only · <a href="https://github.com/Halunen/MitchLucky#readme" target="_blank" rel="noopener noreferrer">Source &amp; README</a>');
 if (/id="token"|id="connect-dialog"|src="\/|href="\/|require\(/.test(html)) throw new Error('Unexpected private setup or root-relative asset in public demo.');
 fs.writeFileSync(path.join(root, 'docs', 'index.html'), html);
 fs.writeFileSync(path.join(root, 'docs', '.nojekyll'), '');

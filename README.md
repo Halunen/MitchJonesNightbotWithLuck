@@ -1,8 +1,8 @@
 # MitchLucky
 
-**Hunt. Before. Punt**
+**[▶ Try the Public Demo](https://halunen.github.io/MitchLucky/)** — no install, Twitch account, or token required.
 
-**[Try the public demo](https://halunen.github.io/MitchJonesNightbotWithLuck/)** — no install, Twitch account, or token required.
+**Hunt. Before. Punt**
 
 A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
@@ -71,7 +71,7 @@ The server listens on `127.0.0.1`, so it is accessible from this computer. Keep 
 
 ## Try the demo
 
-Open the **[public demo URL](https://halunen.github.io/MitchJonesNightbotWithLuck/)** to show someone the app without installing anything. Each browser has its own sandbox: visitors do not affect each other's rolls or your live giveaways. The public demo has no Twitch login or token fields and makes no Twitch or payout-database requests.
+Open the **[public demo URL](https://halunen.github.io/MitchLucky/)** to show someone the app without installing anything. Each browser has its own sandbox: visitors do not affect each other's rolls or your live giveaways. The public demo has no Twitch login or token fields and makes no Twitch or payout-database requests.
 
 Luck, winner selection, and rerolls use the same engine as the local app. Public demo history, participation, and custom messages are saved in that browser's local storage. New Giveaway followed by Open Entries automatically adds sample viewers for another round. Closing/reopening an existing pool adds no extra participation. Announcements appear only in the demo chat feed. Clearing the site's browser data resets its saved sandbox.
 
