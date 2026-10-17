@@ -4,12 +4,23 @@
 
 A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
-![MitchLucky demo with a selected winner and automatic announcement](docs/demo.png)
+## Example: select a winner and instantly see their previous wins
+
+As soon as the bot selects a viewer, the winner card immediately shows whether they have a previous paid-win record in the available demo data. Individual payout details appear only after selection.
+
+In the screenshot below, **Thrall** is selected and the card instantly shows **Already won · 1 win** and **USD 75.00 paid**. The bot also posts the automatic announcement, starts the response timer, and offers **Reroll Giveaway** or **New Giveaway**.
+
+![Selected winner Thrall immediately shows Already won, one previous paid win, and a fictional USD 75.00 payout](docs/selected-winner-example.png)
+
+If the selected viewer has no matching paid-win record, the card instead shows **No previous paid wins in demo records.** This describes the available records; it does not claim the viewer has never won anywhere.
+
+**This screenshot uses fictional demo payouts. The live paid-winners endpoint is not connected yet.**
 
 ## Features
 
 | Feature | What it does |
 | --- | --- |
+| Instant selected-winner check | Immediately show the selected viewer's previous paid-win status, win count, and total paid from the available demo records. |
 | Keyword giveaways | Viewers enter with `yo`, `YO`, or `Yo`. The keyword is configurable. |
 | One entry per viewer | Repeated messages add neither entries nor luck. Twitch user IDs prevent duplicate entries under renamed accounts when available. |
 | Gradual first-win luck | Never-winners earn +5% draw weight per giveaway they enter, capped at +25% by default. |
