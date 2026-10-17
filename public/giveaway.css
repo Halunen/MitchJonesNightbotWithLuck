@@ -3,6 +3,7 @@
 .sidebar{width:200px;background:#242a30;border:0}
 .brand{height:50px;padding:0 19px;background:#2879b4;font-size:23px;font-weight:400;gap:9px}
 .brand-icon{width:22px;height:25px;font-size:26px;color:#fff}
+.brand .brand-logo{width:28px;height:36px;object-fit:contain;flex-shrink:0}
 .brand small{font-size:11px;background:#ffffff26;padding:3px 5px;margin-left:3px;border-radius:2px;vertical-align:middle}
 .workspace-label{font-size:10px;letter-spacing:1px;background:transparent;color:#7d8992;padding:24px 20px 13px}
 nav a,nav button{font-size:13px;padding:13px 20px;gap:12px;border-left:3px solid transparent;color:#b1bbc4}

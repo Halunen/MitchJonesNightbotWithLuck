@@ -204,9 +204,9 @@ const server = http.createServer(async (req, res) => {
     } catch (error) { res.writeHead(400).end(JSON.stringify({ error: error.message })); }
     finally { busy = false; } return;
   }
-  const files = { '/': 'index.html', '/app.js': 'app.js', '/giveaway-ui.js': 'giveaway-ui.js', '/style.css': 'style.css', '/theme.css': 'theme.css', '/giveaway.css': 'giveaway.css' };
+  const files = { '/': 'index.html', '/app.js': 'app.js', '/giveaway-ui.js': 'giveaway-ui.js', '/style.css': 'style.css', '/theme.css': 'theme.css', '/giveaway.css': 'giveaway.css', '/mitch-logo.png': 'mitch-logo.png' };
   if (req.method !== 'GET' || !files[pathname]) { res.writeHead(404).end('Not found'); return; }
-  res.setHeader('Content-Type', pathname.endsWith('.js') ? 'text/javascript' : pathname.endsWith('.css') ? 'text/css' : 'text/html');
+  res.setHeader('Content-Type', pathname.endsWith('.png') ? 'image/png' : pathname.endsWith('.js') ? 'text/javascript' : pathname.endsWith('.css') ? 'text/css' : 'text/html');
   res.end(fs.readFileSync(path.join(__dirname, 'public', files[pathname])));
 });
 const heartbeat = setInterval(() => { for (const client of clients) client.write(': heartbeat\n\n'); if ((state.round.mode === 'active' && state.round.status === 'open') || (state.round.cooldownMinutes > 0 && ['open', 'closed'].includes(state.round.status))) publish(); }, 20000);
