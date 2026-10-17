@@ -2,6 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomInt } = require('node:crypto');
+const { demoPaidWinnersResponse, readDemoPaidWinners } = require('./paid-winners');
 const { WebSocket } = require('ws');
 const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckReply } = require('./engine');
 const port = Number(process.env.PORT || 38741);
@@ -31,6 +32,10 @@ const clients = new Set();
 const chat = [];
 let persistTimer, publishTimer;
 const history = () => state.histories[state.channel] ||= [];
+let paidWinnerCache = { checkedAt: null, records: [] };
+function refreshDemoPayouts() { paidWinnerCache = { checkedAt: new Date().toISOString(), records: readDemoPaidWinners() }; }
+const paidWinners = () => state.channel === '__demo__' ? paidWinnerCache.records : [];
+if (state.channel === '__demo__') refreshDemoPayouts();
 let lastSent = 0;
 function sendChat(message) {
   const text = chatText(message), demo = state.channel === '__demo__';
@@ -47,9 +52,10 @@ function save() {
   fs.renameSync(statePath + '.tmp', statePath);
 }
 function snapshot() {
-  const entrants = pool(state.round, history().filter(h => h.roundId !== state.round.id), state.round.winner ? Date.parse(state.round.winner.at) : Date.now());
+  const entrants = pool(state.round, history().filter(h => h.roundId !== state.round.id), state.round.winner ? Date.parse(state.round.winner.at) : Date.now(), paidWinners());
   const total = entrants.reduce((sum, e) => sum + e.weight, 0);
-  return { channel: state.channel, demo: state.channel === '__demo__', serverNow: new Date().toISOString(), round: { ...state.round, entrants: entrants.map(e => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canRead: connection.status === 'connected', canSend: state.channel === '__demo__' || (connection.status === 'connected' && Boolean(credentials?.writeEnabled && credentials?.scopes?.includes('chat:edit'))) };
+  const selectedWinner = state.round.winner ? paidWinners().find(w => w.login === state.round.winner.login) || null : null;
+  return { channel: state.channel, demo: state.channel === '__demo__', payouts: { source: state.channel === '__demo__' ? 'demo' : 'not-connected', checkedAt: state.channel === '__demo__' ? paidWinnerCache.checkedAt : null, refreshSeconds: 30, selectedWinner }, serverNow: new Date().toISOString(), round: { ...state.round, entrants: entrants.map(({ paidWinner, ...e }) => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canRead: connection.status === 'connected', canSend: state.channel === '__demo__' || (connection.status === 'connected' && Boolean(credentials?.writeEnabled && credentials?.scopes?.includes('chat:edit'))) };
 }
 function publish() { const msg = `data: ${JSON.stringify(snapshot())}\n\n`; for (const client of clients) client.write(msg); }
 function publishSoon() { if (!publishTimer) publishTimer = setTimeout(() => { publishTimer = null; publish(); }, 200); }
@@ -88,7 +94,7 @@ function connect() {
       message.subscriber = /(?:^|;)subscriber=1(?:;| )/.test(line);
       message.messageId = line.match(/(?:^@|;)id=([^; ]+)/)?.[1];
       const asksLuck = matchesKeyword(message.text, '!luck');
-      if (asksLuck && connection.status === 'connected' && credentials?.writeEnabled && Date.now() - lastSent >= 1700) sendChat(luckReply(state.round, history(), participation(), message));
+      if (asksLuck && connection.status === 'connected' && credentials?.writeEnabled && Date.now() - lastSent >= 1700) sendChat(luckReply(state.round, history(), participation(), message, paidWinners()));
       const qualifies = !asksLuck && permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || matchesKeyword(message.text, state.round.keyword));
       const accepted = qualifies && enter(state.round, message.login, message.displayName, message.userId, participation());
       if (qualifies && state.round.status === 'open') {
@@ -140,6 +146,7 @@ async function action(route, body) {
   }
   else if (route === 'demo') {
     disconnect(); state.channel = '__demo__'; state.round = newRound(); chat.length = 0;
+    refreshDemoPayouts();
     state.round.status = 'open';
     const wowCharacters = ['Thrall', 'Jaina', 'Arthas', 'Sylvanas', 'Illidan', 'Anduin', 'Tyrande', 'Malfurion', 'Garrosh', 'Voljin', 'Guldan', 'Khadgar', 'Alexstrasza', 'Chromie', 'Velen', 'Baine'];
     // Fisher–Yates gives each demo a fresh mix of WoW characters.
@@ -149,6 +156,9 @@ async function action(route, body) {
     const demoSeed = history().find(h => h.id === 'demo-seed');
     if (demoSeed) Object.assign(demoSeed, { login: 'cdew', displayName: 'CDEW' });
     status('demo', 'Sandbox • no Twitch messages are sent.');
+  } else if (route === 'demo/payouts/refresh') {
+    if (state.channel !== '__demo__') throw new Error('Sample payout records are only available in the demo sandbox.');
+    refreshDemoPayouts();
   } else if (route === 'luck') {
     if (body.roundId !== round.id) throw new Error('The giveaway changed. Adjust the slider again.');
     if (!['ready', 'open', 'closed'].includes(round.status)) throw new Error('Start a new giveaway to change luck after a winner has been drawn.');
@@ -174,7 +184,7 @@ async function action(route, body) {
     if (round.status !== 'open') throw new Error('Entries are not open.'); round.status = 'closed'; round.closedAt = new Date().toISOString();
   } else if (route === 'draw') {
     if (body.roundId && body.roundId !== round.id) throw new Error('The giveaway changed. Review the current entry pool before rolling.');
-    draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost));
+    draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost), paidWinners());
   }
   else if (route === 'new') {
     if (round.status === 'open') throw new Error('Close entries before starting a new giveaway.');
@@ -200,6 +210,9 @@ const server = http.createServer(async (req, res) => {
     clients.add(res); res.write(`data: ${JSON.stringify(snapshot())}\n\n`); req.on('close', () => clients.delete(res)); return;
   }
   if (req.method === 'GET' && pathname === '/api/state') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(snapshot())); return; }
+  if (req.method === 'GET' && pathname === '/api/demo/paid-winners' && state.channel === '__demo__') {
+    res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(demoPaidWinnersResponse())); return;
+  }
   if (req.method === 'POST' && pathname.startsWith('/api/')) {
     if (req.headers.origin !== `http://${host}` || req.headers['content-type'] !== 'application/json') { res.writeHead(403).end(); return; }
     if (busy) { res.writeHead(409).end(JSON.stringify({ error: 'Another action is in progress. Try again.' })); return; }
@@ -216,5 +229,6 @@ const server = http.createServer(async (req, res) => {
   res.end(fs.readFileSync(path.join(__dirname, 'public', files[pathname])));
 });
 const heartbeat = setInterval(() => { for (const client of clients) client.write(': heartbeat\n\n'); if ((state.round.mode === 'active' && state.round.status === 'open') || (state.round.cooldownMinutes > 0 && ['open', 'closed'].includes(state.round.status))) publish(); }, 20000);
+const payoutRefresh = setInterval(() => { if (state.channel === '__demo__') { refreshDemoPayouts(); publish(); } }, 30000);
 server.listen(port, '127.0.0.1', () => console.log(`MitchLucky is ready at http://127.0.0.1:${port}`));
-process.on('SIGINT', () => { disconnect(); clearInterval(heartbeat); server.close(); process.exit(); });
+process.on('SIGINT', () => { disconnect(); clearInterval(heartbeat); clearInterval(payoutRefresh); server.close(); process.exit(); });

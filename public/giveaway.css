@@ -4,6 +4,15 @@
 .brand{height:50px;padding:0 19px;background:#2879b4;font-size:23px;font-weight:400;gap:9px}
 .brand-icon{width:22px;height:25px;font-size:26px;color:#fff}
 .brand .brand-logo{width:28px;height:36px;object-fit:contain;flex-shrink:0}
+.paid-winner-tag{display:inline-block;margin:4px 0 1px;padding:2px 5px;border-radius:3px;background:#fff0d4;color:#855600;font-size:10px;font-weight:600;line-height:1.5;white-space:normal}
+.viewer .paid-winner-total{color:#855600;font-size:10px;line-height:1.6}
+.winner-body .paid-winner-tag{font-size:12px;margin:5px 0 4px;padding:4px 8px}
+.winner-body .paid-winner-total{display:block;font-size:13px;color:#855600;line-height:1.8;margin-bottom:10px}
+.winner-body .paid-winner-empty{font-size:11px;color:#738596;margin:8px 0}
+.payout-source{padding:12px 15px;background:#f0f7fc;border-bottom:1px solid #d9e6ef;font-size:11px;color:#41627c;line-height:1.6}
+.payout-source p{margin:3px 0 8px;font-size:10px;color:#6c8091}
+.payout-source-actions{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#payout-status{font-size:10px;flex:1;min-width:120px}
 .brand small{font-size:11px;background:#ffffff26;padding:3px 5px;margin-left:3px;border-radius:2px;vertical-align:middle}
 .workspace-label{font-size:10px;letter-spacing:1px;background:transparent;color:#7d8992;padding:24px 20px 13px}
 nav a,nav button{font-size:13px;padding:13px 20px;gap:12px;border-left:3px solid transparent;color:#b1bbc4}

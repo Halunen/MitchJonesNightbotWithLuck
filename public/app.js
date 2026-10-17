@@ -3,6 +3,11 @@ let state, dirty = false, boostDirty = false, rolling = false, pending = false, 
 let apiQueue = Promise.resolve();
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = value => `${(value * 100).toFixed(value > 0 && value < .001 ? 4 : 2)}%`;
+function paidWinnerTag(winner) {
+  if (!winner) return '';
+  const amount = (winner.totalPaidCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '<span class="paid-winner-tag">Already won · ' + winner.winCount + (winner.winCount === 1 ? ' win' : ' wins') + '</span><small class="paid-winner-total">' + escapeHtml(winner.currency) + ' ' + amount + ' paid · demo</small>';
+}
 const announcement = winner => `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`;
 function elapsedLabel(start) {
   const seconds = Math.max(0, Math.floor((Date.now() + clockOffsetMs - Date.parse(start)) / 1000));
@@ -63,6 +68,9 @@ function render(next) {
   document.querySelector('.giveaway-card').hidden = round.status === 'drawn';
   (round.status === 'drawn' ? document.querySelector('.winner-card') : document.querySelector('.giveaway-actions')).appendChild($('new'));
   $('entry-count').textContent = round.entrants.length;
+  $('payout-source').hidden = !demo;
+  $('payout-status').textContent = demo ? 'Sample payouts · checked ' + new Date(state.payouts.checkedAt).toLocaleTimeString() + ' · refreshes every 30s' : '';
+  $('payout-refresh').disabled = !demo;
   renderEntrants();
   $('chat-dot').className = `chat-dot ${connection.status === 'connected' ? 'live' : ''}`;
   $('send-chat').disabled = !state.canSend;
@@ -76,7 +84,7 @@ function render(next) {
   $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo sandbox. Connect Twitch to see live chat.' : escapeHtml(connection.message)}</div>`;
   $('chat').scrollTop = $('chat').scrollHeight;
   $('winner').className = `winner-body ${round.winner ? 'selected' : ''}`;
-  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3><p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>Click <strong>Roll It!</strong> while entries are open to select a winner.</p>';
+  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3>${demo ? (paidWinnerTag(state.payouts.selectedWinner) || '<p class="paid-winner-empty">No previous paid wins in demo records.</p>') : ''}<p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>Click <strong>Roll It!</strong> while entries are open to select a winner.</p>';
   updateWinnerTimers();
   $('copy-winner').hidden = !round.winner;
   if ($('announce-winner')) $('announce-winner').hidden = !round.winner || !state.canSend;
@@ -94,7 +102,7 @@ function renderEntrants() {
   const total = preview.reduce((sum, e) => sum + e.weight, 0);
   const entrants = preview.map(e => ({ ...e, odds: total ? e.weight / total : 0 })).filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
   $('empty').hidden = state.round.entrants.length > 0;
-  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'} · standard luck` : `${e.luckEntries || 1} giveaway${e.luckEntries === 1 || !e.luckEntries ? '' : 's'} entered · no wins`}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}" title="${e.wins ? 'Previous winner: standard weight' : `+5% per giveaway entered, capped at +${cap}%`}">${e.blocked ? escapeHtml(e.reason) : `+${e.bonus}% · ${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
+  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins ? 'Standard luck' : 'No recorded wins'}">${escapeHtml(e.displayName)}<small>${e.wins ? 'Standard luck' : `${e.luckEntries || 1} giveaway${e.luckEntries === 1 || !e.luckEntries ? '' : 's'} entered · no wins`}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}" title="${e.wins ? 'Previous winner: standard weight' : `+5% per giveaway entered, capped at +${cap}%`}">${e.blocked ? escapeHtml(e.reason) : `+${e.bonus}% · ${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
   $('pool-footer').textContent = `${entrants.length > 500 ? `Showing 500 of ${entrants.length} matching viewers. ` : ''}Exact chances update as viewers join. ${state.round.entrants.filter(e => e.blocked).length} ineligible.`;
 }
 for (const key of ['title', 'keyword', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`; });
@@ -110,6 +118,7 @@ $('boost').addEventListener('change', async () => {
   }
 });
 $('search').addEventListener('input', renderEntrants);
+$('payout-refresh').onclick = () => api('demo/payouts/refresh');
 $('entrants').addEventListener('click', event => { const button = event.target.closest('[data-remove]'); if (button) api('remove', { login: button.dataset.remove }); });
 const settings = () => Object.fromEntries(['title', 'keyword', 'boost', 'cooldownMinutes', 'mode', 'activeMinutes', 'level'].filter(key => $(key)).map(key => [key, $(key).value]));
 $('settings').addEventListener('submit', async event => { event.preventDefault(); dirty = false; if (await api('settings', settings())) toast('Giveaway rules saved.'); });

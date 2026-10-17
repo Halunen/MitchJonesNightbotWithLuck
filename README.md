@@ -1,53 +1,153 @@
 # MitchLucky
 
-A focused, Nightbot-style Twitch giveaway tool with a modest first-win luck boost.
+**Hunt. Before. Punt**
 
-## Run
+A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
-Use Node.js 22 or newer. In this folder:
+![MitchLucky giveaway dashboard with sample paid-winner badges](docs/demo.png)
+
+## Features
+
+| Feature | What it does |
+| --- | --- |
+| Keyword giveaways | Viewers enter with `yo`, `YO`, or `Yo`. The keyword is configurable. |
+| One entry per viewer | Repeated messages add neither entries nor luck. Twitch user IDs prevent duplicate entries under renamed accounts when available. |
+| Gradual first-win luck | Never-winners earn +5% draw weight per giveaway they enter, capped at +25% by default. |
+| Live luck slider | Adjust the maximum bonus from 0% to 50% while entries are open or paused. Chances preview while dragging; the cap saves on release. |
+| Direct winner selection | Click **Roll It!** while entries are open. One action stops entries and selects a winner using the displayed cap. |
+| Eligibility controls | Everyone, Subscribers + Mods, Moderators, or Broadcaster. Exclude individual viewers or reset eligibility. |
+| Active User mode | Collect viewers who chat during a configurable 1–60 minute activity window. |
+| Winner timer | Count up from selection. Chat activity does not reset it. |
+| Read and write chat | Read incoming messages, write custom messages, and send congratulations to the winner. |
+| Viewer explanations | Participation counts, individual bonuses, actual chances, `!luck` replies, and a **Luck Rules** message template. |
+| Winner history | Save selected winners per channel, review recent results, and export history as JSON. |
+| Optional winner cooldown | Exclude recent local winners for a selected period, from 15 minutes to 30 days. Disabled by default. |
+| Paid-winner preview | **Demo only:** show “Already won” badges, win counts, and sample payout totals on the selected winner card, plus refresh status. |
+
+## Start locally
+
+Requires **Node.js 22 or newer**.
 
 ```powershell
 npm.cmd install
 npm.cmd start
 ```
 
-Open http://127.0.0.1:38741 or use Start-MitchLucky.cmd. Keep it running while collecting entries. The server listens only on this computer.
+Open **http://127.0.0.1:38741/**. On Windows, you can also use `Start-MitchLucky.cmd`.
 
-## Use
+The server listens on `127.0.0.1`, so it is accessible from this computer. Keep it running while collecting entries.
 
-1. Connect your Twitch channel, or try the separate demo sandbox.
-2. Choose Keyword (default yo, case-insensitive) or Active User, set eligibility, and save. Never-winners earn +5% weight per giveaway entered, capped at +25% by default.
-3. Open entries, adjust luck whenever you want, and click **Roll It!** directly. Rolling stops entries and selects the winner in one action; closing first is optional. Each viewer gets one entry; repeating the keyword adds no extra luck.
-4. MitchLucky saves the winner automatically. Click **New Giveaway** for another draw. There is no import step.
+## Try the demo
 
-Viewers with no saved wins earn +5% draw weight for each distinct giveaway they enter: 105 tickets on their first entry, 110 on their second, up to the default cap of 125. Viewers with a saved win always get 100 tickets. The slider sets the maximum bonus (0–50%), not a win probability. Bonuses add rather than compound. Repeating the keyword, changing the cap, pausing/reopening entries, and giveaways they do not enter add nothing. Starting a new giveaway clears the pool; viewers must enter again to earn the next increase. Winning removes the bonus permanently in future giveaways. Actual probability is the viewer's weight divided by the sum of all eligible weights, so the odds remain small with thousands of entrants. Draws use Node's cryptographically secure random generator.
+Click **Try Demo**. No Twitch account or token is needed.
 
-Participation tracking starts with this version; a saved existing entry pool counts once, and older participation is not guessed. Winner knowledge starts with the giveaways MitchLucky runs. It cannot identify winners from older Nightbot giveaways without an existing record. Any records already saved by an older version are retained. The demo has its own sample history and never changes your real channel history.
+The demo starts with **CDEW, AndyM, CUDA, and GJake**, followed by eight randomly selected World of Warcraft characters. Demo messages stay local and are never sent to Twitch. Demo participation and draw history are separate from real channel history.
 
-Active User mode collects users who chat while entries are open, with a 1–60 minute activity window. Closing entries freezes that window. Subscriber, moderator, and broadcaster eligibility are supported. Blue checkboxes toggle individual eligibility, and Reset Eligibility excludes the pool. The luck slider stays adjustable while entries are open or paused. Chances preview as you drag, and the setting saves automatically on release. Roll It! includes the displayed boost in its request so an immediate roll uses that exact value. Other entry rules stay locked after opening; start a new giveaway to change those. A completed draw cannot be rolled again.
+Sample paid-winner records include:
 
-The optional, collapsed winner cooldown excludes winners for a selected period from 15 minutes to 30 days. It is disabled by default. The winner is recorded at draw time, regardless of prize claims.
+| Demo username | Paid wins | Fictional total paid |
+| --- | ---: | ---: |
+| CDEW | 3 | USD 450.00 |
+| AndyM | 1 | USD 100.00 |
+| GJake | 2 | USD 250.00 |
+| Thrall | 1 | USD 75.00 |
+| Jaina | 2 | USD 200.00 |
 
-## Twitch connection
+**These are fictional examples, not statements about these people's actual winnings.** Paid-win badges, counts, and totals appear **only on the selected winner card after a roll**. The entrant list does not show individual payout details. If the selected viewer has no sample payout record, the winner card says so. CUDA has no sample payout record, making the difference easy to test.
 
-Anonymous IRC access is read-only and may be restricted by Twitch. Choose Read Chat Only, or Read + Write Chat in the connection dialog. For authenticated access, provide a Twitch user OAuth token with chat:read; Read + Write Chat also requires chat:edit. Tokens with writing permission stay read-only unless Read + Write Chat is selected. Tokens are validated with Twitch, held in memory, and never saved. Obtain tokens using your own Twitch developer application or the official Twitch CLI. No moderation permissions are needed. With Read + Write Chat enabled, the bot answers viewers who type !luck with their participation count, bonus, and current odds. Replies use the same send rate limit as other chat messages. It does not send scheduled messages or moderation actions.
+The server rereads its in-memory demo provider every **30 seconds**. **Refresh Records** checks it immediately, and the panel shows the last check time. The demo response is also available at:
 
-The connection retries with backoff. Messages missed while disconnected cannot be recovered. Restarting the app closes an open entry pool and preserves collected entrants; reconnect and reopen, or draw from the saved pool. Authenticated live Twitch behavior still needs verification with your user token.
+```text
+GET /api/demo/paid-winners
+```
 
-## Chat and winner timer
+This endpoint is available only while the demo sandbox is selected. It exposes the same fixed sample records that the demo provider reads; no external database requests occur. A shortened example response:
 
-Read Chat shows incoming channel messages. Write Chat lets you send an editable message; after a draw it defaults to "Congratulations @winner! You won." The Winner Message button fills that template, and Send Congratulations posts it directly. Luck Rules prepares a viewer-facing explanation of the current cap; review it and press Send to post. Viewer rows show the number of giveaways entered and why they have a bonus. The !luck command checks a viewer's bonus without entering them or increasing luck. Reserve !luck for that command rather than using it as the entry keyword. Sending requires an authenticated Read + Write Chat connection. Demo messages stay local and never reach Twitch.
+```json
+{
+  "demo": true,
+  "winners": [
+    { "username": "CDEW", "wins": 3, "totalPaid": 450, "currency": "USD" }
+  ]
+}
+```
 
-Selecting a winner starts a count-up timer based on the saved selection timestamp. It continues across reloads and restarts and does not reset when anyone speaks. A new giveaway clears it; the next winner starts a new timer. There is no automatic timeout or reroll.
+The paid-winner demo is read-only. Drawing someone does **not** create a payout or increase their paid total. Sample paid winners receive standard draw weight and no first-win bonus. Their payout counts are not added to overlapping local selection counts, and no payout dates are invented for the timed cooldown.
 
-## Automatic history and backups
+## How luck works
 
-Participation counts and winner history are saved separately per channel in data/state.json and survives restarts. Twitch user IDs recognize renamed accounts when available. Back up the data folder; losing it loses participation counts and winner knowledge. Export History downloads a report. The history screen shows the latest 100 records, and search displays up to 500 matching entrants; every record and entrant still participates in the draw.
+For viewers with no known wins:
 
-Entries save in batches of up to 250ms; explicit giveaway actions save immediately using a temporary file and rename. Do not run multiple processes against the same data directory. DATA_DIR selects another data directory; PORT selects another port. A corrupt saved file stops startup instead of silently losing history.
+| Giveaways entered | Bonus at the default cap | Draw weight |
+| --- | ---: | ---: |
+| 1 | +5% | 1.05× |
+| 2 | +10% | 1.10× |
+| 3 | +15% | 1.15× |
+| 4 | +20% | 1.20× |
+| 5 or more | +25% | 1.25× |
 
-## Verification
+Each **distinct giveaway entered** counts once. Starting a new giveaway clears the pool; a viewer must enter again to earn another increase. Repeating the keyword, pausing/reopening entries, moving the slider, and giveaways a viewer does not enter add nothing. Bonuses add rather than compound. Prior winners get standard **1.00×** weight.
 
-Run npm.cmd test. Tests cover weighted ticket boundaries, duplicate entries, time-based cooldowns, eligibility, and automatic winner tracking across a server restart without imports. The giveaway UI can be checked with the isolated demo.
+The slider controls the **maximum extra weight**, not anyone's probability of winning. Actual odds are:
 
-Independent project; not affiliated with Nightbot or Twitch.
+```text
+viewer draw weight / total eligible draw weight
+```
+
+For example, with 2,000 eligible entrants and the default +25% cap, even the most favored entrant has at most approximately **0.0625%** chance. With 8,000 entrants, that bound is approximately **0.0156%**. If everyone has the same weight, everyone has equal odds. There is no guaranteed winner bonus.
+
+Draws use Node's cryptographically secure random generator. Participation progress survives restarts. Previous local winners remain eligible unless excluded or on cooldown, but lose the first-win bonus in future giveaways. Old participation is not guessed; a pre-existing saved entry pool counts once when upgraded.
+
+## Connect Twitch
+
+1. Click **Connect Twitch** and enter your channel's Twitch login.
+2. Choose **Read Chat Only** or **Read + Write Chat**.
+3. For authenticated access, provide a Twitch user OAuth token with `chat:read`. Writing also requires `chat:edit` and explicitly selecting Read + Write Chat.
+4. Save giveaway rules, open entries, and let viewers enter. Click **Roll It!** when ready; closing first is optional.
+5. Use **New Giveaway** for another draw. Other entry rules stay locked once entries open; the luck cap remains adjustable.
+
+Tokens are validated with Twitch, kept in server memory, and never saved. Anonymous read-only IRC is supported but may be restricted by Twitch. Authenticated live Twitch behavior still needs verification with your user token.
+
+**Write Chat** sends editable messages as your authenticated Twitch account. **Winner Message** fills `Congratulations @winner! You won.`; **Send Congratulations** sends it directly. **Luck Rules** prepares an explanation to review and send. With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; rapid requests may not all receive replies. `!luck` is reserved for this command.
+
+The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. A completed draw cannot be rolled again.
+
+## Real paid-winners database: next integration
+
+**The live payout endpoint is not connected yet.** Real channels currently use MitchLucky's saved selection history for first-win eligibility, so they cannot identify older Nightbot winners from an external database.
+
+The intended integration will periodically read your existing paid-winners endpoint and use it for paid-winner badges, win counts, and payout totals. Your payout system will remain the source of truth; MitchLucky will not manage payments or maintain a separate payout ledger.
+
+Connecting it requires the endpoint URL, response format, authentication method, and the Twitch username/user ID fields it supplies. The sample JSON above is a demo format, not a required format for your existing API. Real response validation, username/ID matching, refresh failures, and stale-data behavior still need to be implemented against that endpoint.
+
+Local draw history records **selection**, not payment or prize claims. It is separate from paid-winner records.
+
+## Data and configuration
+
+- `data/state.json` stores participation and selected-winner history per channel. Back up the `data` folder.
+- Fictional payout totals are read from the demo provider and are not persisted as payout history.
+- `PORT` changes the listening port; default: `38741`.
+- `DATA_DIR` selects another data directory. Run only one process per directory.
+- Entries save in batches of up to 250 ms. Explicit actions save immediately using a temporary file and rename.
+- Restarting pauses an open giveaway and preserves entrants. Reconnect and reopen, or draw from the saved pool. Messages missed while disconnected cannot be recovered.
+- The table displays up to 500 matching entrants; **all eligible entrants participate in the draw**. History shows the latest 100 results while retaining older records on disk.
+- A corrupt saved file stops startup rather than silently discarding history.
+- Local state, tokens, dependencies, and environment files are excluded from Git.
+
+## Development and verification
+
+```powershell
+npm.cmd test
+```
+
+Tests cover weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, and demo paid-winner isolation. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
+
+Main files:
+
+- `server.js` — local HTTP server, Twitch chat connection, actions, and state updates.
+- `engine.js` — eligibility, participation, luck weights, and winner selection.
+- `paid-winners.js` — fictional read-only payout provider and demo response.
+- `public/` — dashboard UI, styles, and branding.
+- `test/` — Node test suite.
+
+Independent project. Not affiliated with Nightbot, Twitch, or Blizzard Entertainment.

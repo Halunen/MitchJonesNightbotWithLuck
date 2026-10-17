@@ -29,20 +29,21 @@ function trackEntry(round, entrant, ledger) {
   ledger[loginKey] = record;
   entrant.luckEntries = record.count;
 }
-function luckReply(round, history, ledger, message) {
+function luckReply(round, history, ledger, message, paidWinners = []) {
   const entrant = round.entrants.find(e => message.userId ? e.userId === message.userId || (!e.userId && e.login === message.login) : e.login === message.login);
   const record = (message.userId && ledger[`id:${message.userId}`]) || ledger[`login:${message.login}`];
   const entry = entrant || { ...message, luckEntries: record?.count || 0 };
-  const view = pool({ ...round, entrants: [entry] }, history)[0];
+  const view = pool({ ...round, entrants: [entry] }, history, Date.now(), paidWinners)[0];
   if (view.wins) return `@${message.login} You have a recorded win, so your draw weight is 1.00x. Never-winners earn +5% weight per giveaway entered, capped at +${round.boost}%.`;
   if (!entrant || !['open', 'closed'].includes(round.status)) {
     const count = record?.count || entrant?.luckEntries || 0, bonus = count ? luckBonus(count, round.boost) : 0;
     return `@${message.login} You are not entered in an available draw. ${count} giveaway(s) entered with no recorded wins: +${bonus}% saved draw weight (cap +${round.boost}%). Enter the next giveaway for another +5%, up to the cap. Repeating the keyword adds nothing.`;
   }
-  const candidates = pool(round, history), total = candidates.reduce((sum, e) => sum + e.weight, 0);
+  const candidates = pool(round, history, Date.now(), paidWinners), total = candidates.reduce((sum, e) => sum + e.weight, 0);
   return `@${message.login} ${view.luckEntries || 1} giveaway(s) entered with no recorded wins: +${view.bonus}% draw weight (${(1 + view.bonus / 100).toFixed(2)}x; cap +${round.boost}%). Current chance: ${total ? (view.weight / total * 100).toFixed(4) : '0.0000'}%. Once per giveaway; repeating the keyword adds nothing.`;
 }
-function pool(round, history, now = Date.now()) {
+function pool(round, history, now = Date.now(), paidWinners = []) {
+  const paidByLogin = new Map(paidWinners.map(w => [w.login, w]));
   const cutoff = now - round.cooldownMinutes * 60000;
   const recentDraws = round.cooldownMinutes > 0 ? history.filter(h => !h.imported && Date.parse(h.at) > cutoff && Date.parse(h.at) <= now) : [];
   const recent = new Set(recentDraws.map(h => h.login));
@@ -56,12 +57,15 @@ function pool(round, history, now = Date.now()) {
     }
   }
   return round.entrants.map(e => {
-    const wins = (winsByLogin.get(e.login) || 0) + (e.userId ? (winsById.get(e.userId) || 0) - (winsByPair.get(`${e.login}:${e.userId}`) || 0) : 0);
+    const paidWinner = paidByLogin.get(e.login) || null;
+    const localWins = (winsByLogin.get(e.login) || 0) + (e.userId ? (winsById.get(e.userId) || 0) - (winsByPair.get(`${e.login}:${e.userId}`) || 0) : 0);
+    // Sources may describe the same wins. Do not add overlapping counts.
+    const wins = Math.max(localWins, paidWinner?.winCount || 0);
     const coolingDown = round.cooldownMinutes > 0 && (recent.has(e.login) || (e.userId && recentIds.has(e.userId)));
     const inactive = round.mode === 'active' && Date.parse(e.lastActiveAt || e.joinedAt) < (round.closedAt ? Date.parse(round.closedAt) : now) - round.activeMinutes * 60000;
     const blocked = Boolean(e.excluded || coolingDown || inactive);
     const bonus = wins ? 0 : luckBonus(e.luckEntries, round.boost);
-    return { ...e, wins, bonus, blocked, reason: e.excluded ? 'Excluded' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : 100 + bonus };
+    return { ...e, wins, paidWinner, bonus, blocked, reason: e.excluded ? 'Excluded' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : 100 + bonus };
   });
 }
 function enter(round, login, displayName = login, userId = null, ledger = null) {
@@ -72,11 +76,11 @@ function enter(round, login, displayName = login, userId = null, ledger = null) 
   round.entrants.push(entrant);
   return true;
 }
-function draw(round, history, rng = randomInt, boost = round.boost) {
+function draw(round, history, rng = randomInt, boost = round.boost, paidWinners = []) {
   if (!['open', 'closed'].includes(round.status)) throw new Error('Open entries or start a new giveaway before rolling.');
   if (!Number.isInteger(boost) || boost < 0 || boost > 50) throw new Error('First-win luck must be 0–50%.');
   const now = Date.now();
-  const candidates = pool({ ...round, boost, closedAt: round.status === 'open' ? undefined : round.closedAt }, history, now);
+  const candidates = pool({ ...round, boost, closedAt: round.status === 'open' ? undefined : round.closedAt }, history, now, paidWinners);
   const total = candidates.reduce((sum, e) => sum + e.weight, 0);
   if (!total) throw new Error('No eligible entrants. Check the winner cooldown.');
   let ticket = rng(total);
