@@ -1,4 +1,4 @@
-# Nightbot Luck
+# MitchLucky
 
 A local Nightbot-style Twitch control panel with custom commands, timers, regulars, spam filters, bot logs, and keyword or active-user giveaways that modestly favor first-time winners. It is an independent implementation, not a full feature-for-feature copy of Nightbot: song requests, account managers, stream metadata commands, subscriber/regular luck multipliers, and number-guess giveaways are not implemented.
 
@@ -11,7 +11,7 @@ npm.cmd install
 npm.cmd start
 ```
 
-Open http://127.0.0.1:38741 and keep the server running during your giveaway. `Start-Luckybot.cmd` also starts it. The app only listens on this computer. For a different port: `$env:PORT = '38742'` before starting and open that port instead.
+Open http://127.0.0.1:38741 and keep the server running during your giveaway. `Start-MitchLucky.cmd` also starts it. The app only listens on this computer. For a different port: `$env:PORT = '38742'` before starting and open that port instead.
 
 ## First giveaway
 

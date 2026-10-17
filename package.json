@@ -1,5 +1,5 @@
 {
-  "name": "mitchjonesnightbotwithluck",
+  "name": "mitchlucky",
   "version": "1.0.0",
   "description": "Local Nightbot-style Twitch bot with a modest first-win giveaway advantage",
   "main": "server.js",

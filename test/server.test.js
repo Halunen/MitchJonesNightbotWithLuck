@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 test('API giveaway lifecycle, rule locking, persistence and channel-scoped bot settings', async t => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'luckybot-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mitchlucky-test-'));
   const port = 31887, origin = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: String(port), DATA_DIR: dir }, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { child.kill(); });
