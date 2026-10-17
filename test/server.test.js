@@ -20,6 +20,8 @@ test('giveaways remember winners automatically across restarts without an import
   assert.equal((await post('connect', { channel: 'testchannel', writeEnabled: true })).status, 400);
   assert.equal((await post('chat/send', { message: 'Hello' })).status, 400);
   let result = await post('demo'); assert.equal(result.body.round.entrants.length, 12); assert.equal(result.body.demo, true);
+  assert.deepEqual(result.body.round.entrants.slice(0, 4).map(e => e.displayName), ['CDEW', 'AndyM', 'CUDA', 'GJake']);
+  assert.equal(new Set(result.body.round.entrants.map(e => e.login)).size, 12);
   assert.equal(result.body.round.keyword, 'yo');
   assert.equal(result.body.canSend, true);
   assert.equal((await post('chat/send', { message: 'bad\nmessage' })).status, 400);
@@ -50,8 +52,9 @@ test('giveaways remember winners automatically across restarts without an import
   assert.ok(result.body.history.some(h => h.id === winner.id));
   assert.equal(result.body.round.winner.at, winner.at);
   result = await post('demo');
-  assert.equal(result.body.round.entrants.find(e => e.login === winner.login).weight, 100);
-  const loser = result.body.round.entrants.find(e => !e.wins);
+  const returningWinner = result.body.round.entrants.find(e => e.login === winner.login);
+  if (returningWinner) assert.equal(returningWinner.weight, 100);
+  const loser = result.body.round.entrants.slice(0, 4).find(e => !e.wins);
   assert.equal(loser.luckEntries, 2); assert.equal(loser.weight, 110);
   await stop(); await start();
   result = { body: await (await fetch(`${origin}/api/state`)).json() };

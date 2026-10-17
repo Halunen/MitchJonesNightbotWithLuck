@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomInt } = require('node:crypto');
 const { WebSocket } = require('ws');
 const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckReply } = require('./engine');
 const port = Number(process.env.PORT || 38741);
@@ -140,8 +141,13 @@ async function action(route, body) {
   else if (route === 'demo') {
     disconnect(); state.channel = '__demo__'; state.round = newRound(); chat.length = 0;
     state.round.status = 'open';
-    for (const name of ['pixelpilot', 'moonlit', 'mitchfan', 'cozycat', 'arcaneandy', 'ratjam', 'lilac', 'wowenjoyer', 'toastie', 'luckypanda', 'river', 'starboy']) enter(state.round, name, name, null, participation());
-    if (!history().length) history().push({ id: 'demo-seed', login: 'ratjam', displayName: 'ratjam', roundId: 'demo-previous-round', firstWin: true, at: new Date().toISOString(), title: 'Sample previous giveaway' });
+    const wowCharacters = ['Thrall', 'Jaina', 'Arthas', 'Sylvanas', 'Illidan', 'Anduin', 'Tyrande', 'Malfurion', 'Garrosh', 'Voljin', 'Guldan', 'Khadgar', 'Alexstrasza', 'Chromie', 'Velen', 'Baine'];
+    // Fisher–Yates gives each demo a fresh mix of WoW characters.
+    for (let i = wowCharacters.length - 1; i > 0; i--) { const j = randomInt(i + 1); [wowCharacters[i], wowCharacters[j]] = [wowCharacters[j], wowCharacters[i]]; }
+    for (const name of ['CDEW', 'AndyM', 'CUDA', 'GJake', ...wowCharacters.slice(0, 8)]) enter(state.round, name, name, null, participation());
+    if (!history().length) history().push({ id: 'demo-seed', login: 'cdew', displayName: 'CDEW', roundId: 'demo-previous-round', firstWin: true, at: new Date().toISOString(), title: 'Sample previous giveaway' });
+    const demoSeed = history().find(h => h.id === 'demo-seed');
+    if (demoSeed) Object.assign(demoSeed, { login: 'cdew', displayName: 'CDEW' });
     status('demo', 'Sandbox • no Twitch messages are sent.');
   } else if (route === 'luck') {
     if (body.roundId !== round.id) throw new Error('The giveaway changed. Adjust the slider again.');
