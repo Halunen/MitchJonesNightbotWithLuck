@@ -84,10 +84,8 @@ function render(next) {
   $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo sandbox. Connect Twitch to see live chat.' : escapeHtml(connection.message)}</div>`;
   $('chat').scrollTop = $('chat').scrollHeight;
   $('winner').className = `winner-body ${round.winner ? 'selected' : ''}`;
-  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3>${demo ? (paidWinnerTag(state.payouts.selectedWinner) || '<p class="paid-winner-empty">No previous paid wins in demo records.</p>') : ''}<p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>Click <strong>Roll It!</strong> while entries are open to select a winner.</p>';
+  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3>${demo ? (paidWinnerTag(state.payouts.selectedWinner) || '<p class="paid-winner-empty">No previous paid wins in demo records.</p>') : ''}<p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div>` : '<p>Click <strong>Roll It!</strong> while entries are open to select a winner.</p>';
   updateWinnerTimers();
-  $('copy-winner').hidden = !round.winner;
-  if ($('announce-winner')) $('announce-winner').hidden = !round.winner || !state.canSend;
   if ($('reset-eligibility')) $('reset-eligibility').disabled = !['open', 'closed'].includes(round.status);
   $('history-count').textContent = history.length;
   $('history-empty').hidden = history.length > 0;
@@ -137,7 +135,6 @@ $('connect-open').onclick = () => { $('channel').value = state?.demo ? '' : stat
 $('chat-access').onchange = () => { $('token-details').open = $('chat-access').value === 'write'; };
 document.querySelectorAll('.dismiss').forEach(button => button.onclick = () => button.closest('dialog').close());
 $('connect-form').onsubmit = async event => { event.preventDefault(); if (state?.round.entrants.length && $('channel').value.toLowerCase() !== state.channel && !confirm('Switch channels and clear the current entry pool? Winner history is preserved.')) return; if (await api('connect', { channel: $('channel').value, token: $('token').value.trim(), writeEnabled: $('chat-access').value === 'write' })) { $('token').value = ''; $('connect-dialog').close(); } };
-$('copy-winner').onclick = async () => { try { await navigator.clipboard.writeText(announcement(state.round.winner)); toast('Winner announcement copied. Paste it into Twitch chat.'); } catch { toast('Clipboard unavailable. Winner: ' + state.round.winner.login); } };
 $('chat-message').oninput = () => { draftEdited = true; };
 $('use-winner-message').onclick = () => { $('chat-message').value = announcement(state.round.winner); draftEdited = false; };
 $('use-luck-rules').onclick = () => {

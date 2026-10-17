@@ -108,9 +108,9 @@ Draws use Node's cryptographically secure random generator. Participation progre
 
 Tokens are validated with Twitch, kept in server memory, and never saved. Anonymous read-only IRC is supported but may be restricted by Twitch. Authenticated live Twitch behavior still needs verification with your user token.
 
-**Write Chat** sends editable messages as your authenticated Twitch account. **Winner Message** fills `Congratulations @winner! You won.`; **Send Congratulations** sends it directly. **Luck Rules** prepares an explanation to review and send. With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; rapid requests may not all receive replies. `!luck` is reserved for this command.
+**Write Chat** sends editable messages as your authenticated Twitch account. **Winner Message** fills `Congratulations @winner! You won.`; press **Send** in the chat composer to post it. **Luck Rules** prepares an explanation to review and send. With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; rapid requests may not all receive replies. `!luck` is reserved for this command.
 
-The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. A completed draw cannot be rolled again.
+The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. A completed draw cannot be rolled again. Once a winner is shown, **New Giveaway** is the only control on the winner card.
 
 ## Real paid-winners database: next integration
 

@@ -9,8 +9,6 @@ $('search').insertAdjacentHTML('afterend', '<button id="reset-eligibility" class
 $('reset-eligibility').onclick = () => {
   if (confirm('Make every viewer in this pool ineligible? You can include them again with their checkboxes.')) api('reset-eligibility');
 };
-$('copy-winner').insertAdjacentHTML('afterend', '<button id="announce-winner" class="button primary" hidden>Send Congratulations</button>');
-$('announce-winner').onclick = async () => { if (await api('announce')) toast(state.demo ? 'Demo congratulations added locally.' : 'Winner announcement sent to Twitch.'); };
 function routeGiveaway() {
   const isHistory = location.hash === '#history';
   document.querySelector('.breadcrumb').textContent = `Control Panel / ${isHistory ? 'Winner History' : 'Giveaways'}`;
