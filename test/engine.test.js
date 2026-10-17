@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { newRound, pool, enter, draw, parseChat, permitted } = require('../engine');
+const { newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText } = require('../engine');
 const fixture = () => { const round = newRound(); round.status = 'open'; enter(round, 'newviewer', 'NewViewer', '1'); enter(round, 'pastwinner', 'PastWinner', '2'); return { round, history: [{ login: 'pastwinner', userId: '2', imported: false }] }; };
 test('new viewers get exactly 25% extra weight; odds sum to one', () => {
   const { round, history } = fixture(); const entries = pool(round, history);
@@ -61,4 +61,14 @@ test('giveaway eligibility honors subscriber and moderator permissions', () => {
   assert.equal(permitted('subscriber', { login: 'mod', mod: true }), true);
   assert.equal(permitted('owner', { login: 'mod', mod: true }), false);
   assert.equal(permitted('owner', { login: 'owner', broadcaster: true }), true);
+});
+test('yo keyword accepts every capitalization but requires the complete message', () => {
+  assert.equal(newRound().keyword, 'yo');
+  for (const text of ['yo', 'YO', 'Yo', 'yO', '  YO  ']) assert.equal(matchesKeyword(text, 'yo'), true);
+  for (const text of ['yoyo', '!yo', 'yo chat', 'hello yo']) assert.equal(matchesKeyword(text, 'yo'), false);
+});
+test('winner message includes the winner and chat rejects invalid single-line messages', () => {
+  assert.equal(winnerAnnouncement({ login: 'viewer' }), 'Congratulations @viewer! You won.');
+  assert.equal(chatText('  Hello chat!  '), 'Hello chat!');
+  for (const text of ['', '  ', 'a'.repeat(451), 'hello\r\nJOIN #other', 'hello\0']) assert.throws(() => chatText(text), /single-line/);
 });

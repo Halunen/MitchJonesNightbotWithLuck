@@ -16,7 +16,7 @@ Open http://127.0.0.1:38741 or use Start-MitchLucky.cmd. Keep it running while c
 ## Use
 
 1. Connect your Twitch channel, or try the separate demo sandbox.
-2. Choose Keyword or Active User, set eligibility, and save. First-win luck defaults to +25% weight.
+2. Choose Keyword (default yo, case-insensitive) or Active User, set eligibility, and save. First-win luck defaults to +25% weight.
 3. Open entries, then close entries and click **Roll It!**. Each viewer gets one entry; repeating the keyword adds no extra luck.
 4. MitchLucky saves the winner automatically. Click **New Giveaway** for another draw. There is no import step.
 
@@ -30,9 +30,15 @@ The optional, collapsed winner cooldown excludes winners for a selected period f
 
 ## Twitch connection
 
-Anonymous IRC access is read-only and may be restricted by Twitch. For authenticated access, provide a Twitch user OAuth token with chat:read; add chat:edit only to send winner announcements. Tokens are validated with Twitch, held in memory, and never saved. Obtain tokens using your own Twitch developer application or the official Twitch CLI. No moderation permissions are needed. The app does not send commands, scheduled messages, or moderation actions.
+Anonymous IRC access is read-only and may be restricted by Twitch. Choose Read Chat Only, or Read + Write Chat in the connection dialog. For authenticated access, provide a Twitch user OAuth token with chat:read; Read + Write Chat also requires chat:edit. Tokens with writing permission stay read-only unless Read + Write Chat is selected. Tokens are validated with Twitch, held in memory, and never saved. Obtain tokens using your own Twitch developer application or the official Twitch CLI. No moderation permissions are needed. The app does not send commands, scheduled messages, or moderation actions.
 
 The connection retries with backoff. Messages missed while disconnected cannot be recovered. Restarting the app closes an open entry pool and preserves collected entrants; reconnect and reopen, or draw from the saved pool. Authenticated live Twitch behavior still needs verification with your user token.
+
+## Chat and winner timer
+
+Read Chat shows incoming channel messages. Write Chat lets you send an editable message; after a draw it defaults to "Congratulations @winner! You won." The Winner Message button fills that template, and Send Congratulations posts it directly. Sending requires an authenticated Read + Write Chat connection. Demo messages stay local and never reach Twitch.
+
+Selecting a winner starts a count-up timer based on the saved selection timestamp. It continues across reloads and restarts and does not reset when anyone speaks. A new giveaway clears it; the next winner starts a new timer. There is no automatic timeout or reroll.
 
 ## Automatic history and backups
 

@@ -2,7 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { WebSocket } = require('ws');
-const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted } = require('./engine');
+const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText } = require('./engine');
 const port = Number(process.env.PORT || 38741);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -27,10 +27,13 @@ let persistTimer, publishTimer;
 const history = () => state.histories[state.channel] ||= [];
 let lastSent = 0;
 function sendChat(message) {
-  if (connection.status !== 'connected' || !credentials?.scopes?.includes('chat:edit') || socket?.readyState !== WebSocket.OPEN || Date.now() - lastSent < 1700) return false;
-  const text = String(message).replace(/[\r\n]/g, ' ').slice(0, 450);
-  if (!text) return false;
-  socket.send(`PRIVMSG #${state.channel} :${text}\r\n`); lastSent = Date.now(); return true;
+  const text = chatText(message), demo = state.channel === '__demo__';
+  if (Date.now() - lastSent < 1700) return false;
+  if (!demo && (connection.status !== 'connected' || !credentials?.writeEnabled || !credentials?.scopes?.includes('chat:edit') || socket?.readyState !== WebSocket.OPEN)) return false;
+  if (!demo) socket.send(`PRIVMSG #${state.channel} :${text}\r\n`);
+  chat.push({ login: demo ? 'mitchlucky' : credentials.login, displayName: demo ? 'MitchLucky (demo)' : credentials.login, text, outgoing: true });
+  if (chat.length > 40) chat.shift();
+  lastSent = Date.now(); return true;
 }
 function save() {
   clearTimeout(persistTimer); persistTimer = null;
@@ -40,7 +43,7 @@ function save() {
 function snapshot() {
   const entrants = pool(state.round, history().filter(h => h.roundId !== state.round.id), state.round.winner ? Date.parse(state.round.winner.at) : Date.now());
   const total = entrants.reduce((sum, e) => sum + e.weight, 0);
-  return { channel: state.channel, demo: state.channel === '__demo__', round: { ...state.round, entrants: entrants.map(e => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canSend: connection.status === 'connected' && Boolean(credentials?.scopes?.includes('chat:edit')) };
+  return { channel: state.channel, demo: state.channel === '__demo__', serverNow: new Date().toISOString(), round: { ...state.round, entrants: entrants.map(e => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canRead: connection.status === 'connected', canSend: state.channel === '__demo__' || (connection.status === 'connected' && Boolean(credentials?.writeEnabled && credentials?.scopes?.includes('chat:edit'))) };
 }
 function publish() { const msg = `data: ${JSON.stringify(snapshot())}\n\n`; for (const client of clients) client.write(msg); }
 function publishSoon() { if (!publishTimer) publishTimer = setTimeout(() => { publishTimer = null; publish(); }, 200); }
@@ -78,7 +81,7 @@ function connect() {
       message.broadcaster = /badges=[^ ]*broadcaster\/1/.test(line) || message.login === state.channel;
       message.subscriber = /(?:^|;)subscriber=1(?:;| )/.test(line);
       message.messageId = line.match(/(?:^@|;)id=([^; ]+)/)?.[1];
-      const qualifies = permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || message.text.trim().toLowerCase() === state.round.keyword.toLowerCase());
+      const qualifies = permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || matchesKeyword(message.text, state.round.keyword));
       const accepted = qualifies && enter(state.round, message.login, message.displayName, message.userId);
       if (qualifies && state.round.status === 'open') {
         const entrant = state.round.entrants.find(e => e.login === message.login || (message.userId && e.userId === message.userId));
@@ -101,6 +104,7 @@ async function action(route, body) {
   if (route === 'connect') {
     const channel = normalize(body.channel);
     if (!validLogin(channel)) throw new Error('Enter a valid Twitch channel name.');
+    if (body.writeEnabled && !body.token) throw new Error('Read + Write Chat requires a Twitch user token with chat:read and chat:edit.');
     let auth = null;
     if (body.token) {
       const token = String(body.token).replace(/^oauth:/, '');
@@ -108,19 +112,23 @@ async function action(route, body) {
       if (!response.ok) throw new Error('That Twitch token is invalid or expired.');
       const info = await response.json();
       if (!info.scopes?.includes('chat:read')) throw new Error('The token needs the chat:read permission.');
+      if (body.writeEnabled && !info.scopes?.includes('chat:edit')) throw new Error('Writing to chat requires the chat:edit permission. Choose Read Chat Only or use a token with both permissions.');
       const users = await fetch(`https://api.twitch.tv/helix/users?login=${channel}`, { headers: { Authorization: `Bearer ${token}`, 'Client-Id': info.client_id }, signal: AbortSignal.timeout(10000) });
       if (!users.ok) throw new Error('Unable to look up this Twitch channel.');
       const broadcaster = (await users.json()).data?.[0];
       if (!broadcaster) throw new Error('That Twitch channel does not exist.');
-      auth = { login: info.login, token, scopes: info.scopes, userId: info.user_id, clientId: info.client_id, broadcasterId: broadcaster.id };
+      auth = { login: info.login, token, scopes: info.scopes, userId: info.user_id, clientId: info.client_id, broadcasterId: broadcaster.id, writeEnabled: Boolean(body.writeEnabled) };
     }
     disconnect();
     if (state.channel !== channel) { state.channel = channel; state.round = newRound(); chat.length = 0; }
-    credentials = auth; connect();
+    attempts = 0; credentials = auth; connect();
   } else if (route === 'disconnect') disconnect();
   else if (route === 'announce') {
     if (!round.winner) throw new Error('Draw a winner first.');
-    if (!sendChat(`Congratulations @${round.winner.login}! You won ${round.title}!`)) throw new Error('Connect with a chat:edit token to send. Wait a moment between messages.');
+    if (!sendChat(winnerAnnouncement(round.winner))) throw new Error('Choose Read + Write Chat with a chat:edit token to send. Wait a moment between messages.');
+  } else if (route === 'chat/send') {
+    const text = chatText(body.message);
+    if (!sendChat(text)) throw new Error('Choose Read + Write Chat with a chat:edit token to send. Wait a moment between messages.');
   }
   else if (route === 'demo') {
     disconnect(); state.channel = '__demo__'; state.round = newRound(); chat.length = 0;

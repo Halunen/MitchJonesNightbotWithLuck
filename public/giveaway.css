@@ -114,6 +114,18 @@ input:focus,select:focus,textarea:focus{border-color:#66afe9;box-shadow:0 0 5px 
 .chat-line strong{color:#337ab7;font-size:12px}
 .chat-line .entry-tag{background:#eef4f8;color:#7493a8}
 .chat-card .card-footer{flex-shrink:0}
+.chat-composer{padding:12px;border-top:1px solid #eee;flex-shrink:0}
+.chat-composer label{font-size:12px;font-weight:600;letter-spacing:0;display:block;margin-bottom:7px}
+.chat-composer textarea{margin:0;width:100%;min-height:56px;max-height:110px;font-size:12px;padding:8px}
+.chat-compose-actions{display:flex;justify-content:space-between;gap:8px;margin-top:7px}
+.chat-composer .help{font-size:10px;line-height:1.6;margin:8px 0 0}
+.winner-timers{display:grid;grid-template-columns:1fr;border:1px solid #e5e9ed;border-radius:3px;margin:14px 0;background:#fafcfd}
+.winner-timers>div{padding:10px;text-align:center}
+.winner-timers small{font-size:10px;color:#8b969d;display:block;margin-bottom:6px}
+.winner-timers output{display:block;color:#337ab7;font:22px ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums}
+.chat-access-label{margin:16px 0!important}
+.chat-access-label select{display:block;width:100%;padding:9px;margin-top:8px}
+@media(max-width:1000px){.chat-card{min-height:500px;height:500px}}
 .page-footer{font-size:10px;margin-top:20px;padding:13px 0 0;border-top:1px solid #ddd;color:#aaa}
 .history-card{margin:0}
 .bot-pages h1{font-size:24px}

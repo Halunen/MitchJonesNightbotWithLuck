@@ -10,7 +10,13 @@ function permitted(level, message, legacyRegulars = []) {
   if (level === 'regular') return legacyRegulars.includes(message.login);
   return true;
 }
-function newRound() { return { id: randomUUID(), title: 'Community giveaway', keyword: '!luck', mode: 'keyword', activeMinutes: 5, level: 'everyone', boost: 25, cooldownMinutes: 0, status: 'ready', entrants: [], winner: null }; }
+function newRound() { return { id: randomUUID(), title: 'Community giveaway', keyword: 'yo', mode: 'keyword', activeMinutes: 5, level: 'everyone', boost: 25, cooldownMinutes: 0, status: 'ready', entrants: [], winner: null }; }
+function matchesKeyword(text, keyword) { return String(text).trim().toLowerCase() === String(keyword).trim().toLowerCase(); }
+function winnerAnnouncement(winner) { return `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`; }
+function chatText(value) {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > 450 || /[\r\n\x00]/.test(value)) throw new Error('Enter a single-line message of 1–450 characters.');
+  return value.trim();
+}
 function pool(round, history, now = Date.now()) {
   const cutoff = now - round.cooldownMinutes * 60000;
   const recentDraws = round.cooldownMinutes > 0 ? history.filter(h => !h.imported && Date.parse(h.at) > cutoff && Date.parse(h.at) <= now) : [];
@@ -58,4 +64,4 @@ function parseChat(line) {
   const tags = Object.fromEntries((match[1] || '').split(';').map(t => { const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
   return { login: normalize(match[2]), channel: normalize(match[3]), text: match[4], userId: tags['user-id'] || null, displayName: tags['display-name'] || match[2] };
 }
-module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted };
+module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText };

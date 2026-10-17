@@ -17,7 +17,16 @@ test('giveaways remember winners automatically across restarts without an import
   await start();
   const post = async (action, body = {}, customOrigin = origin) => { const response = await fetch(`${origin}/api/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: customOrigin }, body: JSON.stringify(body) }); return { status: response.status, body: response.status === 403 ? null : await response.json() }; };
   assert.equal((await post('demo', {}, 'https://attacker.example')).status, 403);
+  assert.equal((await post('connect', { channel: 'testchannel', writeEnabled: true })).status, 400);
+  assert.equal((await post('chat/send', { message: 'Hello' })).status, 400);
   let result = await post('demo'); assert.equal(result.body.round.entrants.length, 12); assert.equal(result.body.demo, true);
+  assert.equal(result.body.round.keyword, 'yo');
+  assert.equal(result.body.canSend, true);
+  assert.equal((await post('chat/send', { message: 'bad\nmessage' })).status, 400);
+  result = await post('chat/send', { message: 'Congratulations! You won.' });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.chat.at(-1).text, 'Congratulations! You won.');
+  assert.equal(result.body.chat.at(-1).displayName, 'MitchLucky (demo)');
   assert.equal((await post('settings', { boost: 50, cooldownMinutes: 0, keyword: '!luck' })).status, 400);
   await post('close'); result = await post('draw'); assert.equal(result.body.round.status, 'drawn');
   const winner = result.body.round.winner; assert.ok(winner.login); assert.equal((await post('draw')).status, 400);
@@ -28,6 +37,7 @@ test('giveaways remember winners automatically across restarts without an import
   await stop(); await start();
   result = { body: await (await fetch(`${origin}/api/state`)).json() };
   assert.ok(result.body.history.some(h => h.id === winner.id));
+  assert.equal(result.body.round.winner.at, winner.at);
   result = await post('demo');
   assert.equal(result.body.round.entrants.find(e => e.login === winner.login).weight, 100);
   await post('close'); await post('new');
