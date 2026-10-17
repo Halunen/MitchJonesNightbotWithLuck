@@ -2,9 +2,11 @@
 
 **Hunt. Before. Punt**
 
+**[Try the public demo](https://halunen.github.io/MitchJonesNightbotWithLuck/)** — no install, Twitch account, or token required.
+
 A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
-The dashboard uses custom MitchLucky branding and your logo, with focused **Giveaways** and **Winner History** screens. It currently runs locally; the external paid-winners database connection is the next integration.
+The dashboard uses custom MitchLucky branding and your logo, with focused **Giveaways** and **Winner History** screens. The Twitch-connected bot runs locally. The public sample-data demo runs entirely in each visitor's browser; the external paid-winners database connection is the next integration.
 
 ## Example: select a winner and instantly see their previous wins
 
@@ -68,6 +70,12 @@ Open **http://127.0.0.1:38741/**. On Windows, you can also use `Start-MitchLucky
 The server listens on `127.0.0.1`, so it is accessible from this computer. Keep it running while collecting entries.
 
 ## Try the demo
+
+Open the **[public demo URL](https://halunen.github.io/MitchJonesNightbotWithLuck/)** to show someone the app without installing anything. Each browser has its own sandbox: visitors do not affect each other's rolls or your live giveaways. The public demo has no Twitch login or token fields and makes no Twitch or payout-database requests.
+
+Luck, winner selection, and rerolls use the same engine as the local app. Public demo history, participation, and custom messages are saved in that browser's local storage. New Giveaway followed by Open Entries automatically adds sample viewers for another round. Closing/reopening an existing pool adds no extra participation. Announcements appear only in the demo chat feed. Clearing the site's browser data resets its saved sandbox.
+
+To try the Node app locally instead:
 
 Click **Try Demo**. No Twitch account or token is needed.
 
@@ -184,13 +192,23 @@ Local draw history records **selection**, not payment or prize claims. It is sep
 npm.cmd test
 ```
 
-The current suite has **22 automated tests**, covering weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, demo paid-winner isolation, automatic announcement templates, rate limiting, and avoiding duplicate sends across restarts. Reroll tests also cover preserving the pool and participation, excluding earlier selections by username/user ID, retaining the activity cutoff, rejecting stale requests, and leaving the winner intact when the pool is exhausted. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
+The current suite has **24 automated tests**, covering weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, demo paid-winner isolation, automatic announcement templates, rate limiting, and avoiding duplicate sends across restarts. Reroll tests also cover preserving the pool and participation, excluding earlier selections by username/user ID, retaining the activity cutoff, rejecting stale requests, and leaving the winner intact when the pool is exhausted. Public demo tests check isolated visitor storage, the draw/reroll/announcement flow, persistence after reload, and an artifact without credential fields or live network access. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
+
+### Rebuild the public demo
+
+```powershell
+npm.cmd run build:demo
+```
+
+The build copies the UI, shared giveaway engine, branding, and fictional payout fixtures into `docs/`. It substitutes a browser-only API adapter and removes Twitch connection setup. It does not copy `data/`, tokens, environment files, or server credentials. Commit the generated `docs/index.html` and `docs/app/` files with source changes. GitHub Pages publishes the `main` branch's `/docs` folder after a push. The public demo tests also rebuild this artifact.
 
 Main files:
 
 - `server.js` — local HTTP server, Twitch chat connection, actions, and state updates.
 - `engine.js` — eligibility, participation, luck weights, and winner selection.
 - `paid-winners.js` — fictional read-only payout provider and demo response.
+- `demo/browser-api.js` — public browser-only sandbox and visitor storage.
+- `scripts/build-public-demo.js` — builds the static GitHub Pages demo in `docs/`.
 - `public/` — dashboard UI, styles, and branding.
 - `test/` — Node test suite.
 

@@ -1,0 +1,43 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { Script } = require('node:vm');
+const root = path.resolve(__dirname, '..');
+const output = path.join(root, 'docs', 'app');
+fs.mkdirSync(output, { recursive: true });
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+function write(name, text) { new Script(text, { filename: name }); fs.writeFileSync(path.join(output, name), text); }
+const random = `function randomInt(max) {
+  if (!Number.isInteger(max) || max < 1 || max > 0x100000000) throw new Error('Invalid draw range.');
+  const bytes = new Uint32Array(1), limit = Math.floor(0x100000000 / max) * max;
+  do { crypto.getRandomValues(bytes); } while (bytes[0] >= limit);
+  return bytes[0] % max;
+}
+window.MitchLuckyRandomInt = randomInt;
+const randomUUID = () => crypto.randomUUID();`;
+let engine = read('engine.js').replace(/^const \{ randomInt, randomUUID \} = require\('node:crypto'\);\s*/, random + '\n').replace('module.exports =', 'window.MitchLuckyEngine =');
+write('engine.js', `// Generated from engine.js by npm run build:demo.\n(() => {\n${engine}\n})();\n`);
+write('paid-winners.js', `// Generated sample data; no real payouts.\n(() => {\n${read('paid-winners.js').replace('module.exports =', 'window.MitchLuckyPaidWinners =')}\n})();\n`);
+write('demo-api.js', read('demo/browser-api.js'));
+let app = read('public/app.js').replace('fetch(`/api/', 'window.demoApi.fetch(`/api/').replace("new EventSource('/api/events')", "new window.demoApi.EventSource('/api/events')");
+app = app.split(/\r?\n/).filter(line => !line.startsWith("$('connect-open').onclick") && !line.startsWith("$('chat-access').onchange") && !line.startsWith("$('connect-form').onsubmit")).join('\n');
+app = app.replace("['close', 'disconnect']", "['close']");
+app = app.replace("$('connect-open').textContent = connection.status === 'connected' ? 'Channel settings ↗' : 'Connect Twitch ↗';", "$('connect-open').textContent = 'Public Demo'; $('connect-open').disabled = true;");
+app = app.replaceAll('Demo mode: sample users and history. Connect Twitch to run a real giveaway.', 'Public demo: sample viewers and fictional payouts. Your sandbox is saved only in this browser.');
+app = app.replaceAll('Demo sandbox. Connect Twitch to see live chat.', 'Roll a winner to see their automatic announcement here. This demo never connects to Twitch.');
+app = app.replaceAll('Saved automatically per channel.', 'Saved only in this browser.');
+if (/(?<!\.)\bfetch\(|new EventSource|\$\('token'\)/.test(app)) throw new Error('Public client still contains an unadapted network or credential path.');
+write('app.js', '// Generated public-demo client.\n' + app);
+write('giveaway-ui.js', read('public/giveaway-ui.js'));
+for (const name of ['style.css', 'theme.css', 'giveaway.css', 'mitch-logo.png']) fs.copyFileSync(path.join(root, 'public', name), path.join(output, name));
+let html = read('public/index.html').replace(/<dialog id="connect-dialog">[\s\S]*?<\/dialog>/, '');
+html = html.replaceAll('href="/"', 'href="./"').replace(/(href|src)="\/([^"#]+)"/g, '$1="./app/$2"');
+html = html.replace('<title>MitchLucky · Giveaways</title>', '<title>MitchLucky · Public Demo</title>');
+html = html.replace('Local bot connection', 'Your browser sandbox');
+html = html.replace('Saved automatically per channel.', 'Saved only in this browser.');
+html = html.replace('Viewers: type !luck in chat (Read + Write required).', 'Demo entrants are simulated; no Twitch connection is needed.');
+html = html.replace('<script src="./app/app.js">', '<script src="./app/engine.js"></script><script src="./app/paid-winners.js"></script><script src="./app/demo-api.js"></script><script src="./app/app.js">');
+html = html.replace('Independent bot · Not affiliated with Nightbot or Twitch', 'Sample data only · <a href="https://github.com/Halunen/MitchJonesNightbotWithLuck#readme" target="_blank" rel="noopener noreferrer">Source &amp; README</a>');
+if (/id="token"|id="connect-dialog"|src="\/|href="\/|require\(/.test(html)) throw new Error('Unexpected private setup or root-relative asset in public demo.');
+fs.writeFileSync(path.join(root, 'docs', 'index.html'), html);
+fs.writeFileSync(path.join(root, 'docs', '.nojekyll'), '');
+console.log('Built public sample-data demo in docs/. No local runtime data was copied.');
