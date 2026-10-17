@@ -1,0 +1,119 @@
+/* Compact Nightbot-style giveaway workspace. */
+:root{font-family:Arial,"Helvetica Neue",sans-serif;font-size:13px;color:#444;background:#f4f4f4}
+.sidebar{width:200px;background:#242a30;border:0}
+.brand{height:50px;padding:0 19px;background:#2879b4;font-size:23px;font-weight:400;gap:9px}
+.brand-icon{width:22px;height:25px;font-size:26px;color:#fff}
+.brand small{font-size:11px;background:#ffffff26;padding:3px 5px;margin-left:3px;border-radius:2px;vertical-align:middle}
+.workspace-label{font-size:10px;letter-spacing:1px;background:transparent;color:#7d8992;padding:24px 20px 13px}
+nav a,nav button{font-size:13px;padding:13px 20px;gap:12px;border-left:3px solid transparent;color:#b1bbc4}
+nav .active{background:#1c2227;border-left-color:#3d98d5;color:#fff}
+nav a:hover,nav button:hover{background:#1c2227}
+.sidebar-bottom{margin: auto 16px 17px;padding-top:17px;font-size:11px;border-color:#374149}
+.sidebar-bottom .avatar{height:29px;width:29px;background:#3b464f}
+.sidebar-bottom small{font-size:10px;color:#8d99a2}
+main{margin-left:200px}
+header{height:50px;background:#3286c2;padding:0 20px}
+.breadcrumb{font-size:11px;color:#e6f2fb}
+.header-actions{gap:18px}
+.connection{font-size:11px}
+header .button{background:#2a78b2;border-color:#65a1cc;font-weight:400}
+.page-content{padding:20px;max-width:2000px}
+.page-heading{margin-bottom:17px;min-height:30px}
+h1{font-size:24px;font-weight:400;margin:0;color:#444}
+h1 small{font-size:12px;color:#999;margin-left:10px;letter-spacing:0}
+.banner{background:#fffbea;color:#927e3c;border:1px solid #eee4bd;border-radius:2px;padding:10px 13px;font-size:11px;margin-bottom:17px}
+.dashboard-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,1.08fr) minmax(0,1.1fr);gap:17px;align-items:start}
+.giveaway-column{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{border:1px solid #ddd;border-radius:3px;box-shadow:none;background:#fff;min-width:0}
+.card-header{padding:12px 13px;min-height:44px;border-bottom:1px solid #ddd;background:#fafafa;gap:8px;flex-wrap:nowrap}
+.card-header h2,.giveaway-card h2{font-size:14px;font-weight:400;color:#444}
+.card-header .count{background:#e8edf0;color:#666;border-radius:8px;font-size:10px;min-width:21px;text-align:center;padding:2px 5px}
+.button{border-radius:3px;font-size:12px;padding:8px 12px;font-weight:400;border-color:#ccc}
+.button.small{font-size:11px;padding:6px 10px}
+.button.primary{background:#337ab7;border-color:#2e6da4}
+.button.primary:hover{background:#286090}
+.button.secondary{background:#fff;color:#555;border-color:#ccc}
+.button.secondary:hover{background:#eee}
+input:not([type=range]),textarea,select{font-size:12px;border-radius:3px;border:1px solid #ccc;color:#555;background:#fff;box-shadow:inset 0 1px 1px #00000009}
+input:focus,select:focus,textarea:focus{border-color:#66afe9;box-shadow:0 0 5px #66afe94d}
+.eligibility-toolbar{display:flex;gap:7px;padding:12px 12px 8px}
+.eligibility-toolbar .search{width:auto;max-width:none;min-width:0;flex:1;height:31px;padding:7px 9px;font-size:12px}
+#reset-eligibility{height:31px;min-width:33px;font-size:19px;padding:2px 9px;line-height:1.2}
+.pool-summary{padding:3px 12px 12px;display:flex;flex-wrap:wrap;gap:5px 10px;color:#999;font-size:10px}
+.pool-summary strong{font-weight:400;color:#666}
+.entrants-card .table-scroll{max-height:calc(100vh - 290px);min-height:380px;overflow:auto}
+.entrants-card table{table-layout:fixed;width:100%;white-space:normal}
+.entrants-card th{font-size:10px;color:#888;background:#fafafa;padding:9px 7px;font-weight:400}
+.entrants-card th:first-child{width:30px;padding-left:12px}
+.entrants-card th:nth-child(3){width:57px}
+.entrants-card th:nth-child(4){width:60px;padding-right:10px}
+.entrants-card td{padding:10px 7px;font-size:11px;border-bottom:1px solid #eee;vertical-align:middle;color:#777}
+.entrants-card td:first-child{padding-left:12px}
+.entrants-card td:last-child{padding-right:10px;text-align:right;font-variant-numeric:tabular-nums}
+.entrants-card th:last-child{text-align:right}
+.viewer{overflow-wrap:anywhere;color:#337ab7!important;font-size:12px!important;font-weight:400}
+.viewer small{display:block;font-size:9px;color:#aaa;margin-top:4px}
+.eligibility-check{display:grid;place-items:center;width:15px;height:15px;border:1px solid #bbb;border-radius:2px;background:#fff;padding:0;font-size:11px;color:#fff;line-height:1}
+.eligibility-check.checked{background:#337ab7;border-color:#337ab7}
+.eligibility-check:disabled{opacity:.7}
+.ineligible .viewer{color:#aaa!important}
+.weight{border-radius:2px;padding:2px 3px;font-size:10px;background:transparent;color:#337ab7;display:inline-block;max-width:100%;overflow-wrap:anywhere}
+.weight.normal{background:transparent;color:#999}
+.card-footer{padding:10px 12px;background:#fafafa;border-top:1px solid #eee;font-size:10px;line-height:1.6;color:#999}
+.empty{padding:25px 15px;color:#999;gap:8px}
+.empty strong{font-size:12px;font-weight:400}
+.empty p{font-size:10px;line-height:1.7}
+.entrants-card:has(#empty:not([hidden])) .table-scroll{min-height:0}
+.entrants-card #empty:not([hidden]){min-height:380px;align-content:center}
+#settings{padding:15px}
+#settings label{font-size:12px;letter-spacing:0;font-weight:600;color:#555}
+#settings label>input{margin-top:7px;padding:8px 10px;font-size:12px;height:33px;font-weight:400}
+.giveaway-type-row{display:flex;flex-direction:column;gap:16px;margin-bottom:16px}
+.giveaway-type-row select{padding:7px 9px;height:33px;margin-top:7px;font-size:12px;font-weight:400}
+.giveaway-name{margin-bottom:16px}
+.keyword-row{display:block;margin:0 0 16px}
+.keyword-row label{width:100%}
+.keyword-row p{font-size:10px;line-height:1.6;color:#999;margin:6px 0 0}
+.luck-panel{border:0;border-top:1px solid #eee;background:transparent;border-radius:0;padding:15px 0 0;margin-top:0}
+.luck-panel h3{font-size:14px;font-weight:400;color:#444;margin:0 0 17px}
+.luck-heading{gap:8px;align-items:center}
+.luck-heading strong{font-size:12px;color:#555;font-weight:600}
+.luck-heading p{font-size:10px;color:#999;margin:5px 0 0}
+.boost-badge{font-size:11px;padding:4px 6px;border-radius:3px;color:#337ab7;background:#eaf3fa;font-weight:400}
+.range-row{margin-top:17px;gap:10px}
+.range-row input{accent-color:#337ab7;height:4px;margin-left:0}
+.range-row span{font-size:11px;font-weight:400;color:#555;min-width:35px;text-align:right}
+.range-labels{font-size:9px;color:#aaa;margin-top:8px;padding-right:43px}
+.explanation{font-size:10px;line-height:1.7;color:#999;margin:13px 0 16px}
+.cooldown-row{padding-top:15px;border-color:#eee}
+.cooldown-row strong{font-size:11px;color:#666;font-weight:600}
+.cooldown-row small{color:#aaa;font-size:9px;margin-top:5px}
+.cooldown-row select{font-size:10px;padding:6px;max-width:105px}
+.giveaway-actions{justify-content:flex-start;display:flex;flex-wrap:wrap;gap:7px;margin-top:19px}
+.giveaway-actions .button{font-size:11px;padding:8px 10px}
+#draw{font-weight:600}
+.pill{font-size:9px;background:#eee;border:0;padding:4px 6px;color:#888;border-radius:2px;white-space:nowrap}
+.pill.open{background:#e5f2e7;color:#3b8650}
+.winner-card{text-align:left;background:#fff;border-color:#ddd}
+.winner-body{padding:16px 13px;text-align:left}
+.winner-body h3,.winner-body.selected h3{font-size:18px;font-weight:400;margin:0 0 7px;color:#337ab7}
+.winner-body p{font-size:11px;color:#999;line-height:1.8;margin:0}
+.winner-body p strong{font-weight:400;color:#777}
+.winner-channel{display:inline-block;font-size:11px;color:#337ab7;margin-top:10px}
+.winner-card>.button{margin:0 13px 12px;align-self:flex-start}
+.fair-note{display:block;padding:0 2px;margin:0;font-size:10px;color:#999;line-height:1.7}
+.chat-card{height:calc(100vh - 184px);min-height:600px;display:flex;flex-direction:column}
+.chat-card .card-header{flex-shrink:0}
+.chat-feed{height:auto;min-height:0;flex:1;padding:12px 14px}
+.chat-empty{display:grid;place-items:center;min-height:250px;padding:40px 15px;color:#aaa;font-size:11px;line-height:1.8}
+.chat-line{font-size:12px;color:#666;margin-bottom:8px;line-height:1.7}
+.chat-line strong{color:#337ab7;font-size:12px}
+.chat-line .entry-tag{background:#eef4f8;color:#7493a8}
+.chat-card .card-footer{flex-shrink:0}
+.page-footer{font-size:10px;margin-top:20px;padding:13px 0 0;border-top:1px solid #ddd;color:#aaa}
+.history-card{margin:0}
+.bot-pages h1{font-size:24px}
+@media(min-width:1700px){.dashboard-grid{grid-template-columns:minmax(300px,1fr) 390px minmax(320px,1.15fr)}}
+@media(max-width:1180px) and (min-width:761px){.sidebar{width:170px}.brand{padding-left:12px;font-size:20px;gap:4px}.brand small{font-size:9px}.brand-icon{font-size:22px;width:19px}main{margin-left:170px}.page-content{padding:15px}.dashboard-grid{gap:12px;grid-template-columns:minmax(0,.9fr) minmax(260px,1.1fr) minmax(0,1fr)}.entrants-card th:nth-child(4){width:52px}.entrants-card th:nth-child(3){width:45px}.entrants-card td{font-size:10px}.viewer{font-size:11px!important}h1 small{display:none}.chat-card{min-height:590px}}
+@media(max-width:1000px) and (min-width:761px){.dashboard-grid{grid-template-columns:minmax(0,1fr) minmax(270px,1fr)}.chat-card{grid-column:1/-1;height:320px;min-height:320px}.entrants-card .table-scroll{max-height:600px}.chat-empty{min-height:180px}.chat-feed{min-height:0}.page-footer{font-size:9px}}
+@media(max-width:760px){.sidebar{width:100%;position:relative;display:block}.brand{height:48px;font-size:23px;padding:0 15px;gap:8px}.workspace-label,.sidebar-bottom{display:none}.sidebar nav{display:flex;flex-wrap:wrap;padding:5px}nav a,nav button{width:auto;border:0;font-size:11px;padding:8px 10px;gap:6px}nav .active{background:#337ab7}.sidebar nav .active{background:#337ab7}main{margin-left:0}header{height:48px;padding:0 14px}.header-actions{gap:8px}.page-content{padding:15px}.page-heading{margin-bottom:15px}h1{font-size:22px}h1 small{display:none}.dashboard-grid{grid-template-columns:1fr;gap:15px}.giveaway-column{grid-row:1}.entrants-card{grid-row:2}.chat-card{grid-row:3;height:350px;min-height:350px}.entrants-card .table-scroll{max-height:380px;min-height:0}.entrants-card #empty:not([hidden]){min-height:160px}.entrants-card .viewer{font-size:12px!important}.eligibility-toolbar .search{max-width:none}.giveaway-type-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card-header h2{font-size:14px}.chat-empty{min-height:180px}.page-footer{font-size:9px;line-height:1.8}.page-footer span{display:block}.connection{font-size:10px}}

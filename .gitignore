@@ -1,0 +1,9 @@
+node_modules/
+data/
+*.log
+.playwright-mcp/
+.env
+.env.*
+!.env.example
+preview.png
+cooldown-preview.png
