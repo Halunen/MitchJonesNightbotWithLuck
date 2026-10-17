@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
-let state, dirty = false, pending = false, toastTimer, clockOffsetMs = 0, draftEdited = false, draftWinnerId = null;
+let state, dirty = false, boostDirty = false, rolling = false, pending = false, toastTimer, clockOffsetMs = 0, draftEdited = false, draftWinnerId = null;
+let apiQueue = Promise.resolve();
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = value => `${(value * 100).toFixed(2)}%`;
 const announcement = winner => `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`;
@@ -14,12 +15,15 @@ function updateWinnerTimers() {
 }
 setInterval(updateWinnerTimers, 1000);
 function toast(message, error = false) { $('toast').textContent = message; $('toast').className = error ? 'error' : ''; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 5000); }
-async function api(action, data = {}) {
-  if (pending) return;
-  pending = true;
-  try { const response = await fetch(`/api/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error); render(result); return true; }
-  catch (error) { toast(error.message, true); return false; }
-  finally { pending = false; }
+function api(action, data = {}) {
+  const request = apiQueue.then(async () => {
+    pending = true;
+    try { const response = await fetch(`/api/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error); render(result); return true; }
+    catch (error) { toast(error.message, true); return false; }
+    finally { pending = false; }
+  });
+  apiQueue = request;
+  return request;
 }
 function updateBoost() {
   const value = Number($('boost').value);
@@ -41,16 +45,20 @@ function render(next) {
   $('stat-new').textContent = first; $('stat-returning').textContent = round.entrants.length - first;
   $('stat-new-caption').textContent = round.entrants.length ? `${Math.round(first / round.entrants.length * 100)}% of your entry pool` : 'Waiting for their moment';
   const editable = round.status === 'ready';
+  if (changedRound) $('luck-status').textContent = 'Adjust anytime — luck applies automatically.';
   if (!dirty || changedRound) {
-    for (const key of ['title', 'keyword', 'boost', 'cooldownMinutes', 'mode', 'activeMinutes', 'level']) if ($(key)) $(key).value = round[key]; dirty = false; updateBoost();
+    for (const key of ['title', 'keyword', 'cooldownMinutes', 'mode', 'activeMinutes', 'level']) if ($(key)) $(key).value = round[key]; dirty = false;
   }
-  for (const key of ['title', 'keyword', 'boost', 'cooldownMinutes', 'save-settings', 'mode', 'activeMinutes', 'level']) if ($(key)) $(key).disabled = !editable;
+  if (changedRound || round.status === 'drawn') boostDirty = false;
+  if (!boostDirty) { $('boost').value = round.boost; updateBoost(); }
+  $('boost').disabled = round.status === 'drawn';
+  for (const key of ['title', 'keyword', 'cooldownMinutes', 'save-settings', 'mode', 'activeMinutes', 'level']) if ($(key)) $(key).disabled = !editable;
   if ($('active-window-row')) $('active-window-row').hidden = $('mode').value !== 'active';
   document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`;
   $('round-status').textContent = { ready: 'Ready to start', open: '● Entries open', closed: 'Entries closed', drawn: 'Winner drawn' }[round.status];
   $('round-status').className = `pill ${round.status === 'open' ? 'open' : ''}`;
   $('open').hidden = !['ready', 'closed'].includes(round.status); $('open').textContent = round.status === 'closed' ? 'Reopen Entries' : 'Open Entries';
-  $('close').hidden = round.status !== 'open'; $('draw').hidden = round.status !== 'closed'; $('draw').disabled = !round.entrants.some(e => e.weight > 0);
+  $('close').hidden = round.status !== 'open'; $('draw').hidden = !['open', 'closed'].includes(round.status); $('draw').disabled = rolling || !round.entrants.some(e => e.weight > 0);
   $('new').hidden = !['drawn', 'closed'].includes(round.status);
   document.querySelector('.giveaway-card').hidden = round.status === 'drawn';
   (round.status === 'drawn' ? document.querySelector('.winner-card') : document.querySelector('.giveaway-actions')).appendChild($('new'));
@@ -68,7 +76,7 @@ function render(next) {
   $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo sandbox. Connect Twitch to see live chat.' : escapeHtml(connection.message)}</div>`;
   $('chat').scrollTop = $('chat').scrollHeight;
   $('winner').className = `winner-body ${round.winner ? 'selected' : ''}`;
-  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3><p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>No winner selected. Close entries and click <strong>Roll It!</strong> to pick a winner.</p>';
+  $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3><p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><div class="winner-timers"><div><small>Time since selected</small><output id="winner-elapsed" role="timer" aria-live="off">00:00</output></div></div><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>Click <strong>Roll It!</strong> while entries are open to select a winner.</p>';
   updateWinnerTimers();
   $('copy-winner').hidden = !round.winner;
   if ($('announce-winner')) $('announce-winner').hidden = !round.winner || !state.canSend;
@@ -81,18 +89,38 @@ function render(next) {
 function renderEntrants() {
   if (!state) return;
   const query = $('search').value.toLowerCase();
-  const entrants = state.round.entrants.filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
+  const preview = state.round.entrants.map(e => ({ ...e, weight: e.blocked ? 0 : e.wins ? 100 : 100 + (boostDirty ? Number($('boost').value) : state.round.boost) }));
+  const total = preview.reduce((sum, e) => sum + e.weight, 0);
+  const entrants = preview.map(e => ({ ...e, odds: total ? e.weight / total : 0 })).filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
   $('empty').hidden = state.round.entrants.length > 0;
   $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'}` : 'No recorded wins'}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}">${e.blocked ? escapeHtml(e.reason) : `${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
   $('pool-footer').textContent = `${entrants.length > 500 ? `Showing 500 of ${entrants.length} matching viewers. ` : ''}Exact chances update as viewers join. ${state.round.entrants.filter(e => e.blocked).length} ineligible.`;
 }
-for (const key of ['title', 'keyword', 'boost', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; updateBoost(); document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`; });
+for (const key of ['title', 'keyword', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`; });
+$('boost').addEventListener('input', () => { boostDirty = true; updateBoost(); renderEntrants(); $('luck-status').textContent = 'Preview — release to apply'; });
+$('boost').addEventListener('change', async () => {
+  const boost = Number($('boost').value), roundId = state.round.id;
+  $('luck-status').textContent = 'Applying luck…';
+  const ok = await api('luck', { boost, roundId });
+  if (state.round.id === roundId && Number($('boost').value) === boost) {
+    boostDirty = false;
+    if (!ok) { $('boost').value = state.round.boost; updateBoost(); renderEntrants(); }
+    $('luck-status').textContent = ok ? 'Luck applied automatically' : 'Could not apply luck — try again';
+  }
+});
 $('search').addEventListener('input', renderEntrants);
 $('entrants').addEventListener('click', event => { const button = event.target.closest('[data-remove]'); if (button) api('remove', { login: button.dataset.remove }); });
 const settings = () => Object.fromEntries(['title', 'keyword', 'boost', 'cooldownMinutes', 'mode', 'activeMinutes', 'level'].filter(key => $(key)).map(key => [key, $(key).value]));
 $('settings').addEventListener('submit', async event => { event.preventDefault(); dirty = false; if (await api('settings', settings())) toast('Giveaway rules saved.'); });
 $('open').onclick = async () => { if (state.round.status === 'ready') { dirty = false; if (!await api('settings', settings())) return; } await api('open'); };
-for (const name of ['close', 'draw', 'disconnect']) $(name).onclick = () => api(name);
+for (const name of ['close', 'disconnect']) $(name).onclick = () => api(name);
+$('draw').onclick = async () => {
+  if (rolling) return;
+  rolling = true; $('draw').disabled = true;
+  const ok = await api('draw', { roundId: state.round.id, boost: Number($('boost').value) });
+  rolling = false;
+  if (!ok) render(state);
+};
 $('new').onclick = () => { if (state.round.entrants.length && !state.round.winner && !confirm('Clear this entry pool and start a new giveaway?')) return; api('new'); };
 $('demo').onclick = () => { if (state?.round.entrants.length && !confirm('Switch to the demo sandbox? This clears the current entry pool. Winner history is preserved.')) return; api('demo'); };
 $('connect-open').onclick = () => { $('channel').value = state?.demo ? '' : state?.channel || ''; $('chat-access').value = state?.canSend && !state.demo ? 'write' : 'read'; $('token-details').open = $('chat-access').value === 'write'; $('connect-dialog').showModal(); };

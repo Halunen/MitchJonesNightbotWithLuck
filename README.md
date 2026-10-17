@@ -17,14 +17,14 @@ Open http://127.0.0.1:38741 or use Start-MitchLucky.cmd. Keep it running while c
 
 1. Connect your Twitch channel, or try the separate demo sandbox.
 2. Choose Keyword (default yo, case-insensitive) or Active User, set eligibility, and save. First-win luck defaults to +25% weight.
-3. Open entries, then close entries and click **Roll It!**. Each viewer gets one entry; repeating the keyword adds no extra luck.
+3. Open entries, adjust luck whenever you want, and click **Roll It!** directly. Rolling stops entries and selects the winner in one action; closing first is optional. Each viewer gets one entry; repeating the keyword adds no extra luck.
 4. MitchLucky saves the winner automatically. Click **New Giveaway** for another draw. There is no import step.
 
 Viewers with no saved wins get 125 tickets by default; viewers with a saved win get 100 tickets. With one of each, the odds are 55.56% and 44.44%. Winning removes the bonus in later giveaways. The boost is adjustable from 0% to 50% and never compounds. Draws use Node's cryptographically secure random generator.
 
 Winner knowledge starts with the giveaways MitchLucky runs. It cannot identify winners from older Nightbot giveaways without an existing record. Any records already saved by an older version are retained. The demo has its own sample history and never changes your real channel history.
 
-Active User mode collects users who chat while entries are open, with a 1–60 minute activity window. Closing entries freezes that window. Subscriber, moderator, and broadcaster eligibility are supported. Blue checkboxes toggle individual eligibility, and Reset Eligibility excludes the pool. Rules stay locked after opening entries; start a new giveaway to change them.
+Active User mode collects users who chat while entries are open, with a 1–60 minute activity window. Closing entries freezes that window. Subscriber, moderator, and broadcaster eligibility are supported. Blue checkboxes toggle individual eligibility, and Reset Eligibility excludes the pool. The luck slider stays adjustable while entries are open or paused. Chances preview as you drag, and the setting saves automatically on release. Roll It! includes the displayed boost in its request so an immediate roll uses that exact value. Other entry rules stay locked after opening; start a new giveaway to change those. A completed draw cannot be rolled again.
 
 The optional, collapsed winner cooldown excludes winners for a selected period from 15 minutes to 30 days. It is disabled by default. The winner is recorded at draw time, regardless of prize claims.
 

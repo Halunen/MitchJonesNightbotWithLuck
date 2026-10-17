@@ -44,16 +44,19 @@ function enter(round, login, displayName = login, userId = null) {
   round.entrants.push({ login, displayName: String(displayName).slice(0, 40), userId, joinedAt: new Date().toISOString() });
   return true;
 }
-function draw(round, history, rng = randomInt) {
-  if (round.status !== 'closed') throw new Error('Close entries before drawing.');
+function draw(round, history, rng = randomInt, boost = round.boost) {
+  if (!['open', 'closed'].includes(round.status)) throw new Error('Open entries or start a new giveaway before rolling.');
+  if (!Number.isInteger(boost) || boost < 0 || boost > 50) throw new Error('First-win luck must be 0–50%.');
   const now = Date.now();
-  const candidates = pool(round, history, now);
+  const candidates = pool({ ...round, boost, closedAt: round.status === 'open' ? undefined : round.closedAt }, history, now);
   const total = candidates.reduce((sum, e) => sum + e.weight, 0);
   if (!total) throw new Error('No eligible entrants. Check the winner cooldown.');
   let ticket = rng(total);
   const selected = candidates.find(e => (ticket -= e.weight) < 0);
-  const winner = { id: randomUUID(), roundId: round.id, title: round.title, login: selected.login, displayName: selected.displayName, userId: selected.userId, firstWin: selected.wins === 0, at: new Date(now).toISOString(), odds: selected.weight / total, boost: round.boost, cooldownMinutes: round.cooldownMinutes, eligible: candidates.filter(e => e.weight).length };
+  const winner = { id: randomUUID(), roundId: round.id, title: round.title, login: selected.login, displayName: selected.displayName, userId: selected.userId, firstWin: selected.wins === 0, at: new Date(now).toISOString(), odds: selected.weight / total, boost, cooldownMinutes: round.cooldownMinutes, eligible: candidates.filter(e => e.weight).length };
   history.push(winner);
+  if (round.status === 'open') round.closedAt = winner.at;
+  round.boost = boost;
   round.winner = winner;
   round.status = 'drawn';
   return winner;

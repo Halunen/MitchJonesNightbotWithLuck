@@ -16,7 +16,7 @@ test('weighted draw ticket boundaries give 125 tickets to new viewer and 100 to 
     const { round, history } = fixture(); round.status = 'closed';
     const winner = draw(round, history, total => { assert.equal(total, 225); return ticket; });
     assert.equal(winner.login, expected); assert.equal(round.status, 'drawn'); assert.equal(history.length, 2);
-    assert.throws(() => draw(round, history), /Close entries/);
+    assert.throws(() => draw(round, history), /new giveaway/);
   }
 });
 test('a first win removes the bonus in the next giveaway, including after renaming', () => {
@@ -37,10 +37,26 @@ test('time cooldown expires exactly at its boundary regardless of other draws', 
   round.cooldownMinutes = 0;
   assert.equal(pool(round, history, wonAt + 1000)[1].weight, 100);
 });
-test('draw rejects empty pools, ineligible pools, and open rounds', () => {
-  const round = newRound(); assert.throws(() => draw(round, []), /Close entries/);
-  round.status = 'open'; enter(round, 'viewer'); assert.throws(() => draw(round, []), /Close entries/);
-  round.status = 'closed'; round.cooldownMinutes = 1; assert.throws(() => draw(round, [{ login: 'viewer', at: new Date().toISOString() }]), /No eligible/);
+test('failed rolls leave an open giveaway collecting entries', () => {
+  const round = newRound(); assert.throws(() => draw(round, []), /Open entries/);
+  round.status = 'open'; assert.throws(() => draw(round, []), /No eligible/);
+  assert.equal(round.status, 'open');
+  enter(round, 'viewer'); round.cooldownMinutes = 1;
+  const history = [{ login: 'viewer', at: new Date().toISOString() }];
+  assert.throws(() => draw(round, history), /No eligible/);
+  assert.equal(round.status, 'open'); assert.equal(history.length, 1);
+});
+test('rolling an open giveaway applies the current boost and stops new entries exactly once', () => {
+  const { round, history } = fixture();
+  assert.throws(() => draw(round, history, () => 0, 51), /0–50/);
+  assert.equal(round.status, 'open'); assert.equal(round.boost, 25);
+  const winner = draw(round, history, total => { assert.equal(total, 250); return 149; }, 50);
+  assert.equal(winner.login, 'newviewer'); assert.equal(winner.odds, .6);
+  assert.equal(winner.boost, 50); assert.equal(round.boost, 50);
+  assert.equal(round.closedAt, winner.at); assert.equal(round.status, 'drawn');
+  assert.equal(enter(round, 'lateviewer'), false);
+  assert.throws(() => draw(round, history), /new giveaway/);
+  assert.equal(history.length, 2);
 });
 test('IRC parsing reads verified Twitch identity and ignores protocol messages', () => {
   assert.deepEqual(parseChat('@display-name=Viewer;user-id=123 :viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #channel :!luck'), { login: 'viewer', displayName: 'Viewer', userId: '123', channel: 'channel', text: '!luck' });

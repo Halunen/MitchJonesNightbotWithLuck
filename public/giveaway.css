@@ -93,6 +93,8 @@ input:focus,select:focus,textarea:focus{border-color:#66afe9;box-shadow:0 0 5px 
 .cooldown-options summary{font-size:11px;color:#888;cursor:pointer}
 .cooldown-options .cooldown-row{border:0;padding-top:12px}
 .tracking-note{font-size:10px;color:#85969f;line-height:1.7;margin:12px 0 0}
+.luck-status{font-size:10px;color:#337ab7;line-height:1.6;margin:12px 0 0}
+#boost:not(:disabled){cursor:ew-resize}
 .giveaway-actions{justify-content:flex-start;display:flex;flex-wrap:wrap;gap:7px;margin-top:19px}
 .giveaway-actions .button{font-size:11px;padding:8px 10px}
 #draw{font-weight:600}

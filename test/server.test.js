@@ -28,8 +28,16 @@ test('giveaways remember winners automatically across restarts without an import
   assert.equal(result.body.chat.at(-1).text, 'Congratulations! You won.');
   assert.equal(result.body.chat.at(-1).displayName, 'MitchLucky (demo)');
   assert.equal((await post('settings', { boost: 50, cooldownMinutes: 0, keyword: '!luck' })).status, 400);
-  await post('close'); result = await post('draw'); assert.equal(result.body.round.status, 'drawn');
+  const roundId = result.body.round.id;
+  assert.equal((await post('luck', { roundId: 'old-round', boost: 40 })).status, 400);
+  assert.equal((await post('luck', { roundId, boost: 51 })).status, 400);
+  result = await post('luck', { roundId, boost: 40 });
+  assert.equal(result.body.round.status, 'open'); assert.equal(result.body.round.boost, 40);
+  assert.equal(result.body.round.entrants.length, 12);
+  result = await post('draw', { roundId, boost: 45 }); assert.equal(result.body.round.status, 'drawn');
   const winner = result.body.round.winner; assert.ok(winner.login); assert.equal((await post('draw')).status, 400);
+  assert.equal(winner.boost, 45); assert.equal(winner.odds, (winner.firstWin ? 145 : 100) / (11 * 145 + 100));
+  assert.equal((await post('luck', { roundId, boost: 50 })).status, 400);
   assert.equal(result.body.history.filter(h => h.id === winner.id).length, 1);
   assert.equal(result.body.bot, undefined);
   assert.equal((await post('import', { names: 'OLDWINNER' })).status, 400);

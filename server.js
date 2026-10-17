@@ -136,6 +136,12 @@ async function action(route, body) {
     for (const name of ['pixelpilot', 'moonlit', 'mitchfan', 'cozycat', 'arcaneandy', 'ratjam', 'lilac', 'wowenjoyer', 'toastie', 'luckypanda', 'river', 'starboy']) enter(state.round, name);
     if (!history().length) history().push({ id: 'demo-seed', login: 'ratjam', displayName: 'ratjam', roundId: 'demo-previous-round', firstWin: true, at: new Date().toISOString(), title: 'Sample previous giveaway' });
     status('demo', 'Sandbox • no Twitch messages are sent.');
+  } else if (route === 'luck') {
+    if (body.roundId !== round.id) throw new Error('The giveaway changed. Adjust the slider again.');
+    if (!['ready', 'open', 'closed'].includes(round.status)) throw new Error('Start a new giveaway to change luck after a winner has been drawn.');
+    const boost = Number(body.boost);
+    if (!Number.isInteger(boost) || boost < 0 || boost > 50) throw new Error('First-win luck must be 0–50%.');
+    round.boost = boost;
   } else if (route === 'settings') {
     if (round.status !== 'ready') throw new Error('Create a new giveaway before changing its rules.');
     const boost = Number(body.boost), cooldownMinutes = Number(body.cooldownMinutes);
@@ -152,7 +158,10 @@ async function action(route, body) {
     delete round.closedAt;
   } else if (route === 'close') {
     if (round.status !== 'open') throw new Error('Entries are not open.'); round.status = 'closed'; round.closedAt = new Date().toISOString();
-  } else if (route === 'draw') draw(round, history());
+  } else if (route === 'draw') {
+    if (body.roundId && body.roundId !== round.id) throw new Error('The giveaway changed. Review the current entry pool before rolling.');
+    draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost));
+  }
   else if (route === 'new') {
     if (round.status === 'open') throw new Error('Close entries before starting a new giveaway.');
     state.round = { ...newRound(), title: round.title, keyword: round.keyword, boost: round.boost, cooldownMinutes: round.cooldownMinutes, mode: round.mode, activeMinutes: round.activeMinutes, level: round.level };
