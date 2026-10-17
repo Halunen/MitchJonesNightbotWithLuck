@@ -1,6 +1,15 @@
 const { randomInt, randomUUID } = require('node:crypto');
 const normalize = value => String(value || '').trim().replace(/^[@#]/, '').toLowerCase();
 function validLogin(value) { return /^[a-z0-9_]{1,25}$/.test(value); }
+function permitted(level, message, legacyRegulars = []) {
+  if (message.broadcaster) return true;
+  if (level === 'owner') return false;
+  if (message.mod) return true;
+  if (level === 'moderator') return false;
+  if (level === 'subscriber') return Boolean(message.subscriber);
+  if (level === 'regular') return legacyRegulars.includes(message.login);
+  return true;
+}
 function newRound() { return { id: randomUUID(), title: 'Community giveaway', keyword: '!luck', mode: 'keyword', activeMinutes: 5, level: 'everyone', boost: 25, cooldownMinutes: 0, status: 'ready', entrants: [], winner: null }; }
 function pool(round, history, now = Date.now()) {
   const cutoff = now - round.cooldownMinutes * 60000;
@@ -49,4 +58,4 @@ function parseChat(line) {
   const tags = Object.fromEntries((match[1] || '').split(';').map(t => { const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
   return { login: normalize(match[2]), channel: normalize(match[3]), text: match[4], userId: tags['user-id'] || null, displayName: tags['display-name'] || match[2] };
 }
-module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat };
+module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted };

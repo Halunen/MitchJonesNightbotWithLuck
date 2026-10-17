@@ -4,28 +4,37 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-test('API giveaway lifecycle, rule locking, persistence and channel-scoped bot settings', async t => {
+test('giveaways remember winners automatically across restarts without an import step', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mitchlucky-test-'));
   const port = 31887, origin = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: String(port), DATA_DIR: dir }, stdio: ['ignore', 'pipe', 'pipe'] });
-  t.after(() => { child.kill(); });
-  await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(new Error('Server did not start')), 10000); child.stdout.once('data', () => { clearTimeout(timeout); resolve(); }); child.once('error', reject); });
+  let child;
+  async function start() {
+    child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: String(port), DATA_DIR: dir }, stdio: ['ignore', 'pipe', 'pipe'] });
+    await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(new Error('Server did not start')), 10000); child.stdout.once('data', () => { clearTimeout(timeout); resolve(); }); child.once('error', reject); });
+  }
+  async function stop() { await new Promise(resolve => { child.once('exit', resolve); child.kill(); }); }
+  t.after(() => { if (child && child.exitCode === null) child.kill(); });
+  await start();
   const post = async (action, body = {}, customOrigin = origin) => { const response = await fetch(`${origin}/api/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: customOrigin }, body: JSON.stringify(body) }); return { status: response.status, body: response.status === 403 ? null : await response.json() }; };
   assert.equal((await post('demo', {}, 'https://attacker.example')).status, 403);
   let result = await post('demo'); assert.equal(result.body.round.entrants.length, 12); assert.equal(result.body.demo, true);
   assert.equal((await post('settings', { boost: 50, cooldownMinutes: 0, keyword: '!luck' })).status, 400);
   await post('close'); result = await post('draw'); assert.equal(result.body.round.status, 'drawn');
   const winner = result.body.round.winner; assert.ok(winner.login); assert.equal((await post('draw')).status, 400);
-  await post('new'); result = await post('import', { names: 'OLDWINNER, oldwinner, @second' });
-  assert.equal(result.body.history.filter(h => h.login === 'oldwinner').length, 1);
+  assert.equal(result.body.history.filter(h => h.id === winner.id).length, 1);
+  assert.equal(result.body.bot, undefined);
+  assert.equal((await post('import', { names: 'OLDWINNER' })).status, 400);
+  assert.equal((await post('bot/save', {})).status, 400);
+  await stop(); await start();
+  result = { body: await (await fetch(`${origin}/api/state`)).json() };
+  assert.ok(result.body.history.some(h => h.id === winner.id));
+  result = await post('demo');
+  assert.equal(result.body.round.entrants.find(e => e.login === winner.login).weight, 100);
+  await post('close'); await post('new');
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: 60 })).status, 200);
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: -1 })).status, 400);
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: 43201 })).status, 400);
   result = await post('new'); assert.equal(result.body.round.cooldownMinutes, 60);
-  result = await post('bot/save', { type: 'commands', name: '!hello', message: 'Hello $(user)', cooldown: 30, level: 'everyone' });
-  assert.equal(result.body.bot.commands[0].name, '!hello');
-  await post('bot/regulars', { names: 'testviewer' });
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'state.json')));
-  assert.equal(saved.bots.__demo__.regulars[0], 'testviewer');
   assert.ok(saved.histories.__demo__.some(h => h.id === winner.id)); assert.equal(JSON.stringify(saved).includes('token'), false);
 });

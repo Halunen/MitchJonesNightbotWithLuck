@@ -43,7 +43,7 @@ function render(next) {
   renderEntrants();
   $('chat-dot').className = `chat-dot ${connection.status === 'connected' ? 'live' : ''}`;
   $('chat-footer').textContent = `${round.mode === 'active' ? `Active viewers · last ${round.activeMinutes} min` : `Watching for ${round.keyword}`} · ${round.status === 'open' ? 'Collecting entries' : 'Entries paused'}`;
-  $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo entrants are ready. Close entries and draw a winner to try it out.' : escapeHtml(connection.message)}</div>`;
+  $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo sandbox. Connect Twitch to see live chat.' : escapeHtml(connection.message)}</div>`;
   $('chat').scrollTop = $('chat').scrollHeight;
   $('winner').className = `winner-body ${round.winner ? 'selected' : ''}`;
   $('winner').innerHTML = round.winner ? `<h3>${escapeHtml(round.winner.displayName)}</h3><p>${round.winner.firstWin ? 'First recorded win' : 'Previous winner'} · ${pct(round.winner.odds)} chance</p><a class="winner-channel" href="https://www.twitch.tv/${encodeURIComponent(round.winner.login)}" target="_blank" rel="noopener noreferrer">View Channel ↗</a>` : '<p>No winner selected. Close entries and click <strong>Roll It!</strong> to pick a winner.</p>';
@@ -53,14 +53,14 @@ function render(next) {
   $('history-count').textContent = history.length;
   $('history-empty').hidden = history.length > 0;
   $('history-rows').innerHTML = [...history].reverse().slice(0, 100).map(h => `<tr><td class="viewer">${escapeHtml(h.displayName)}</td><td>${escapeHtml(h.title)}</td><td>${escapeHtml(new Date(h.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td><span class="weight ${h.imported || !h.firstWin ? 'normal' : ''}">${h.imported ? 'Imported winner' : h.firstWin ? '✧ First win' : 'Returning winner'}</span></td></tr>`).join('');
-  window.renderBot?.(state);
+  window.renderGiveawayUI?.(state);
 }
 function renderEntrants() {
   if (!state) return;
   const query = $('search').value.toLowerCase();
   const entrants = state.round.entrants.filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
   $('empty').hidden = state.round.entrants.length > 0;
-  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'}` : 'Never won'}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}">${e.blocked ? escapeHtml(e.reason) : `${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
+  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'}` : 'No recorded wins'}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}">${e.blocked ? escapeHtml(e.reason) : `${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
   $('pool-footer').textContent = `${entrants.length > 500 ? `Showing 500 of ${entrants.length} matching viewers. ` : ''}Exact chances update as viewers join. ${state.round.entrants.filter(e => e.blocked).length} ineligible.`;
 }
 for (const key of ['title', 'keyword', 'boost', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; updateBoost(); });
@@ -73,10 +73,8 @@ for (const name of ['close', 'draw', 'disconnect']) $(name).onclick = () => api(
 $('new').onclick = () => { if (state.round.entrants.length && !state.round.winner && !confirm('Clear this entry pool and start a new giveaway?')) return; api('new'); };
 $('demo').onclick = () => { if (state?.round.entrants.length && !confirm('Switch to the demo sandbox? This clears the current entry pool. Winner history is preserved.')) return; api('demo'); };
 $('connect-open').onclick = () => { $('channel').value = state?.demo ? '' : state?.channel || ''; $('connect-dialog').showModal(); };
-$('import-open').onclick = () => $('import-dialog').showModal();
 document.querySelectorAll('.dismiss').forEach(button => button.onclick = () => button.closest('dialog').close());
 $('connect-form').onsubmit = async event => { event.preventDefault(); if (state?.round.entrants.length && $('channel').value.toLowerCase() !== state.channel && !confirm('Switch channels and clear the current entry pool? Winner history is preserved.')) return; if (await api('connect', { channel: $('channel').value, token: $('token').value.trim() })) { $('token').value = ''; $('connect-dialog').close(); } };
-$('import-form').onsubmit = async event => { event.preventDefault(); if (await api('import', { names: $('import-names').value })) { $('import-names').value = ''; $('import-dialog').close(); toast('Past winners imported.'); } };
 $('copy-winner').onclick = async () => { try { await navigator.clipboard.writeText(`Congratulations @${state.round.winner.login}! You won ${state.round.title}!`); toast('Winner announcement copied. Paste it into Twitch chat.'); } catch { toast('Clipboard unavailable. Winner: ' + state.round.winner.login); } };
 $('export').onclick = () => { const blob = new Blob([JSON.stringify({ channel: state.channel, history: state.history }, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mitchlucky-${state.channel || 'channel'}-winners.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
 const events = new EventSource('/api/events');

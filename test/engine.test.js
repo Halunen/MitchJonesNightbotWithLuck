@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { newRound, pool, enter, draw, parseChat } = require('../engine');
+const { newRound, pool, enter, draw, parseChat, permitted } = require('../engine');
 const fixture = () => { const round = newRound(); round.status = 'open'; enter(round, 'newviewer', 'NewViewer', '1'); enter(round, 'pastwinner', 'PastWinner', '2'); return { round, history: [{ login: 'pastwinner', userId: '2', imported: false }] }; };
 test('new viewers get exactly 25% extra weight; odds sum to one', () => {
   const { round, history } = fixture(); const entries = pool(round, history);
@@ -53,4 +53,12 @@ test('active-user eligibility freezes at closing time and manual exclusion persi
   assert.deepEqual(pool(round, history).map(e => e.weight), [125, 0]);
   round.entrants[0].excluded = true; assert.equal(pool(round, history)[0].weight, 0);
   assert.equal(enter(round, 'newviewer'), false); assert.equal(round.entrants[0].excluded, true);
+});
+test('giveaway eligibility honors subscriber and moderator permissions', () => {
+  assert.equal(permitted('subscriber', { login: 'viewer', subscriber: true }), true);
+  assert.equal(permitted('subscriber', { login: 'viewer' }), false);
+  assert.equal(permitted('moderator', { login: 'viewer' }), false);
+  assert.equal(permitted('subscriber', { login: 'mod', mod: true }), true);
+  assert.equal(permitted('owner', { login: 'mod', mod: true }), false);
+  assert.equal(permitted('owner', { login: 'owner', broadcaster: true }), true);
 });

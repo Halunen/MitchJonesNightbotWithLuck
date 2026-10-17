@@ -1,64 +1,47 @@
 # MitchLucky
 
-A local Nightbot-style Twitch control panel with custom commands, timers, regulars, spam filters, bot logs, and keyword or active-user giveaways that modestly favor first-time winners. It is an independent implementation, not a full feature-for-feature copy of Nightbot: song requests, account managers, stream metadata commands, subscriber/regular luck multipliers, and number-guess giveaways are not implemented.
+A focused, Nightbot-style Twitch giveaway tool with a modest first-win luck boost.
 
-## Run on Windows
+## Run
 
-Install Node.js 22 or newer, then open PowerShell in this folder:
+Use Node.js 22 or newer. In this folder:
 
 ```powershell
 npm.cmd install
 npm.cmd start
 ```
 
-Open http://127.0.0.1:38741 and keep the server running during your giveaway. `Start-MitchLucky.cmd` also starts it. The app only listens on this computer. For a different port: `$env:PORT = '38742'` before starting and open that port instead.
+Open http://127.0.0.1:38741 or use Start-MitchLucky.cmd. Keep it running while collecting entries. The server listens only on this computer.
 
-## First giveaway
+## Use
 
-1. Click **Try a demo** to practice with a separate sandbox, or **Connect Twitch** and enter your channel name.
-2. Before opening entries, use **Import past winners** to paste Twitch usernames from your previous giveaways. Twitch and Nightbot history are not automatically imported. Without this, everyone initially counts as a first-time winner.
-3. Set the giveaway name and keyword (default `!luck`). Save rules, then **Open entries**. Viewers enter by sending exactly the keyword in chat, ignoring capitalization and surrounding spaces.
-4. **Close entries**, review the pool and odds, then **Draw a winner**. Use **Copy winner announcement** to paste the result into Twitch chat, or **Announce in Twitch chat** when connected with `chat:edit`. Giveaway announcements are manual; configured commands and timers can reply automatically.
-5. Click **New giveaway** for another round. Winner history is retained.
+1. Connect your Twitch channel, or try the separate demo sandbox.
+2. Choose Keyword or Active User, set eligibility, and save. First-win luck defaults to +25% weight.
+3. Open entries, then close entries and click **Roll It!**. Each viewer gets one entry; repeating the keyword adds no extra luck.
+4. MitchLucky saves the winner automatically. Click **New Giveaway** for another draw. There is no import step.
 
-Anonymous read-only Twitch IRC is the default. It is not an officially guaranteed authentication mode. If Twitch restricts it, expand the authenticated connection section and supply a Twitch user OAuth token with `chat:read`. Obtain a token through your own registered Twitch application or the official Twitch CLI (`twitch token --user-token --scopes "chat:read"`). Tokens are validated with Twitch, held in memory only, and cleared on disconnect or restart. Never paste tokens into chat or commit them. See https://dev.twitch.tv/docs/cli/token-command/ and https://dev.twitch.tv/docs/chat/irc/.
+Viewers with no saved wins get 125 tickets by default; viewers with a saved win get 100 tickets. With one of each, the odds are 55.56% and 44.44%. Winning removes the bonus in later giveaways. The boost is adjustable from 0% to 50% and never compounds. Draws use Node's cryptographically secure random generator.
 
-The dashboard displays the connection status and reconnects with backoff. It cannot recover chat messages missed while disconnected or shut down. Restarting the app closes an open entry pool and retains the collected entrants; reconnect and reopen or draw. Anonymous connections are read-only; authenticated connections can reply when granted `chat:edit`.
+Winner knowledge starts with the giveaways MitchLucky runs. It cannot identify winners from older Nightbot giveaways without an existing record. Any records already saved by an older version are retained. The demo has its own sample history and never changes your real channel history.
 
-## Commands, timers, regulars, and spam filters
+Active User mode collects users who chat while entries are open, with a 1–60 minute activity window. Closing entries freezes that window. Subscriber, moderator, and broadcaster eligibility are supported. Blue checkboxes toggle individual eligibility, and Reset Eligibility excludes the pool. Rules stay locked after opening entries; start a new giveaway to change them.
 
-Connect with a user OAuth token carrying `chat:read chat:edit` for chat replies. Tokens are not saved. Commands support Everyone, Subscriber, Regular, Moderator, and Owner permissions; cooldowns; enable/disable; editing; deletion; and these variables: `$(user)`, `$(channel)`, `$(query)`, `$(touser)`, `$(count)`. The built-in `!commands` lists enabled commands. Other Nightbot variables, aliases, and chat-based command management are not implemented.
+The optional, collapsed winner cooldown excludes winners for a selected period from 15 minutes to 30 days. It is disabled by default. The winner is recorded at draw time, regardless of prize claims.
 
-Timers support an interval in minutes and a minimum number of chat lines in the preceding five minutes. The timer waits a full interval after connection or enabling. Messages share a conservative outgoing rate limit. Replies may be skipped during bursts; timers retry later.
+## Twitch connection
 
-Regulars are stored per channel. Spam filters cover explicit web links, excessive capitals, repeated characters, and blocked phrases. Filters are off by default, exempt the broadcaster and moderators, and optionally exempt regulars. To delete filtered messages, give the token `moderator:manage:chat_messages` and make the authenticated account a channel moderator. Without these, detections are logged and prevented from entering the giveaway, but remain in Twitch chat. Filters do not ban or time out viewers. Logs retain the latest 200 bot events; the live chat panel retains 40 messages in memory. These are basic filters, not a complete Nightbot or Twitch AutoMod implementation.
+Anonymous IRC access is read-only and may be restricted by Twitch. For authenticated access, provide a Twitch user OAuth token with chat:read; add chat:edit only to send winner announcements. Tokens are validated with Twitch, held in memory, and never saved. Obtain tokens using your own Twitch developer application or the official Twitch CLI. No moderation permissions are needed. The app does not send commands, scheduled messages, or moderation actions.
 
-## Fairness rules
+The connection retries with backoff. Messages missed while disconnected cannot be recovered. Restarting the app closes an open entry pool and preserves collected entrants; reconnect and reopen, or draw from the saved pool. Authenticated live Twitch behavior still needs verification with your user token.
 
-- Each unique Twitch account gets one entry. Chat spam adds no extra weight. Twitch user IDs are used to recognize renamed accounts when a previous draw recorded their ID; imported names have no ID and cannot recognize future renames.
-- A viewer with **zero recorded wins** has **125 tickets** by default; a prior winner has **100 tickets**. The boost is adjustable from 0% to 50% and does not accumulate with losses.
-- If one first-timer and one previous winner enter, their chances are **55.56% vs. 44.44%**. The boost adds weight, not percentage points. Repeat winners remain possible.
-- After winning, the viewer gets normal weight in future rounds. History is scoped to the Twitch channel.
-- Optional winner cooldown excludes anyone who won within the selected time frame: 15 or 30 minutes, 1 or 6 hours, 24 hours, or 3, 7, or 30 days. Default is disabled. Eligibility returns when that time passes, regardless of how many other draws occur. Imported names affect first-win luck but are excluded from time cooldowns because their actual winning times are unknown. An existing enabled draw-count cooldown migrates to 24 hours; an existing disabled cooldown stays disabled. Winner history is preserved.
-- Rules are locked once entries open, including while the round is closed. Each draw uses Node’s cryptographically secure `crypto.randomInt`. A completed round cannot draw again.
-- **Active User** mode enters viewers who chat while entries are open and excludes those inactive for the selected 1–60 minute window. Activity tracking begins when the bot connects; it cannot see earlier chat. Closing entries freezes the activity window for that draw. Keyword mode has no activity expiry. Eligibility can require a subscriber, regular, moderator, or broadcaster; moderators and the broadcaster bypass lower user-level requirements. Subscriber eligibility does not include regulars unless they are also subscribed.
-- Viewer checkboxes toggle eligibility without letting repeated keyword messages bypass an exclusion. Reset Eligibility excludes the whole pool; checkboxes can include viewers again, subject to cooldown and activity rules.
-- The winner counts as having won immediately on drawing. There is no prize-claim or automatic reroll workflow. No paid/subscriber odds advantages are included.
+## Automatic history and backups
 
-## Saved data and backups
+Winner history is saved separately per channel in data/state.json and survives restarts. Twitch user IDs recognize renamed accounts when available. Back up the data folder; losing it loses winner knowledge. Export History downloads a report. The history screen shows the latest 100 records, and search displays up to 500 matching entrants; every record and entrant still participates in the draw.
 
-Channel winner histories and current round live in `data/state.json`. Writes use a temporary file and rename. Back up the `data` directory; losing it loses the app’s knowledge of past winners. Never run two server processes against the same data directory. Use `DATA_DIR` for isolated instances. The app refuses to start if saved JSON is corrupt rather than silently forgetting winners.
-
-**Export history** downloads a JSON report for backups and audit. To bulk import past winners, use usernames only (not the exported JSON). The dashboard shows the latest 100 history records and up to 500 matching entrants; every saved record and entrant still participates in the calculations.
+Entries save in batches of up to 250ms; explicit giveaway actions save immediately using a temporary file and rename. Do not run multiple processes against the same data directory. DATA_DIR selects another data directory; PORT selects another port. A corrupt saved file stops startup instead of silently losing history.
 
 ## Verification
 
-```powershell
-npm.cmd test
-```
-
-Tests cover weighted boundaries, deduplication, eligibility, cooldowns, history-based identity, and chat parsing. An actual channel connection and live chat collection require Twitch access and should be tested with your channel before a real prize giveaway.
-
-Development verification: 14 tests pass, including an HTTP API lifecycle and saved data checks; the demo draw and command editor were checked in the browser at mobile and desktop widths. The anonymous live Twitch handshake was closed by the remote endpoint before joining; authenticated live chat, sending, and moderation could not be verified without a user token. Entrant updates are batched for up to 250ms before saving; abrupt power loss can lose those most recent updates. Explicit giveaway actions save immediately.
+Run npm.cmd test. Tests cover weighted ticket boundaries, duplicate entries, time-based cooldowns, eligibility, and automatic winner tracking across a server restart without imports. The giveaway UI can be checked with the isolated demo.
 
 Independent project; not affiliated with Nightbot or Twitch.
