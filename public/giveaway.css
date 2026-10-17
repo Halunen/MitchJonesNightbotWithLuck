@@ -131,6 +131,7 @@ input:focus,select:focus,textarea:focus{border-color:#66afe9;box-shadow:0 0 5px 
 .chat-composer textarea{margin:0;width:100%;min-height:56px;max-height:110px;font-size:12px;padding:8px}
 .chat-compose-actions{display:flex;justify-content:space-between;gap:8px;margin-top:7px}
 .chat-composer .help{font-size:10px;line-height:1.6;margin:8px 0 0}
+.chat-composer .delivery-error{color:#a44432}
 .winner-timers{display:grid;grid-template-columns:1fr;border:1px solid #e5e9ed;border-radius:3px;margin:14px 0;background:#fafcfd}
 .winner-timers>div{padding:10px;text-align:center}
 .winner-timers small{font-size:10px;color:#8b969d;display:block;margin-bottom:6px}

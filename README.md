@@ -4,7 +4,7 @@
 
 A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
-![MitchLucky giveaway dashboard with sample paid-winner badges](docs/demo.png)
+![MitchLucky demo with a selected winner and automatic announcement](docs/demo.png)
 
 ## Features
 
@@ -18,8 +18,8 @@ A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped l
 | Eligibility controls | Everyone, Subscribers + Mods, Moderators, or Broadcaster. Exclude individual viewers or reset eligibility. |
 | Active User mode | Collect viewers who chat during a configurable 1–60 minute activity window. |
 | Winner timer | Count up from selection. Chat activity does not reset it. |
-| Read and write chat | Read incoming messages, write custom messages, and send congratulations to the winner. |
-| Viewer explanations | Participation counts, individual bonuses, actual chances, `!luck` replies, and a **Luck Rules** message template. |
+| Automatic winner announcements | Read incoming chat and automatically announce the selected winner using a customizable message. |
+| Viewer explanations | Participation counts, individual bonuses, actual chances, and automatic `!luck` replies. |
 | Winner history | Save selected winners per channel, review recent results, and export history as JSON. |
 | Optional winner cooldown | Exclude recent local winners for a selected period, from 15 minutes to 30 days. Disabled by default. |
 | Paid-winner preview | **Demo only:** show “Already won” badges, win counts, and sample payout totals on the selected winner card, plus refresh status. |
@@ -108,7 +108,13 @@ Draws use Node's cryptographically secure random generator. Participation progre
 
 Tokens are validated with Twitch, kept in server memory, and never saved. Anonymous read-only IRC is supported but may be restricted by Twitch. Authenticated live Twitch behavior still needs verification with your user token.
 
-**Write Chat** sends editable messages as your authenticated Twitch account. **Winner Message** fills `Congratulations @winner! You won.`; press **Send** in the chat composer to post it. **Luck Rules** prepares an explanation to review and send. With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; rapid requests may not all receive replies. `!luck` is reserved for this command.
+**Customize winner message** sets the announcement sent automatically after selection. The default is `Congratulations {winner}! You Won. You have 60 seconds to respond.`; `{winner}` becomes the selected viewer's Twitch @mention. The box saves automatically per channel, and Roll It! captures the text currently displayed, including recent edits. There are no manual Write Chat, Send, Winner Message, or Luck Rules controls.
+
+Messages must be a single line of 1–425 characters; the final message must fit within 450 characters after replacing placeholders. Automatic sending requires an authenticated **Read + Write Chat** connection. Demo announcements appear only in the local Read Chat feed. The status below the message box shows queued, sent, demo, or not-sent results; the winner stays selected if chat writing is unavailable.
+
+Announcements respect the chat send rate limit and are sent once per selection. Reloading or restarting does not replay them. An interrupted send is marked unconfirmed/not sent instead of being retried automatically, to avoid duplicate announcements. A successful send status means the message was handed to the Twitch connection, not that Twitch acknowledged delivery. Old selections made before automatic announcements were added are not announced retroactively.
+
+With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; winner announcements take priority and rapid luck requests may not all receive replies. `!luck` is reserved for this command.
 
 The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. A completed draw cannot be rolled again. Once a winner is shown, **New Giveaway** is the only control on the winner card.
 
@@ -140,7 +146,7 @@ Local draw history records **selection**, not payment or prize claims. It is sep
 npm.cmd test
 ```
 
-Tests cover weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, and demo paid-winner isolation. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
+Tests cover weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, demo paid-winner isolation, automatic announcement templates, rate limiting, and avoiding duplicate sends across restarts. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
 
 Main files:
 

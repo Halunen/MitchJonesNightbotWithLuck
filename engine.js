@@ -12,7 +12,17 @@ function permitted(level, message, legacyRegulars = []) {
 }
 function newRound() { return { id: randomUUID(), title: 'Community giveaway', keyword: 'yo', mode: 'keyword', activeMinutes: 5, level: 'everyone', boost: 25, cooldownMinutes: 0, status: 'ready', entrants: [], winner: null }; }
 function matchesKeyword(text, keyword) { return String(text).trim().toLowerCase() === String(keyword).trim().toLowerCase(); }
-function winnerAnnouncement(winner) { return `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`; }
+const DEFAULT_WINNER_MESSAGE = 'Congratulations {winner}! You Won. You have 60 seconds to respond.';
+function winnerMessageTemplate(value) {
+  const template = chatText(value);
+  if (template.length > 425) throw new Error('Winner messages must be 1–425 characters. Use {winner} to mention the winner.');
+  if (template.replaceAll('{winner}', '@' + 'a'.repeat(25)).length > 450) throw new Error('Too many {winner} placeholders: the final message must fit within 450 characters.');
+  return template;
+}
+function winnerAnnouncement(winner, template) {
+  if (template === undefined) return `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`;
+  return chatText(winnerMessageTemplate(template).replaceAll('{winner}', `@${winner.login}`));
+}
 function chatText(value) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > 450 || /[\r\n\x00]/.test(value)) throw new Error('Enter a single-line message of 1–450 characters.');
   return value.trim();
@@ -99,4 +109,4 @@ function parseChat(line) {
   const tags = Object.fromEntries((match[1] || '').split(';').map(t => { const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
   return { login: normalize(match[2]), channel: normalize(match[3]), text: match[4], userId: tags['user-id'] || null, displayName: tags['display-name'] || match[2] };
 }
-module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckBonus, luckReply };
+module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckBonus, luckReply };

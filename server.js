@@ -1,10 +1,10 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { randomInt } = require('node:crypto');
+const { randomInt, randomUUID } = require('node:crypto');
 const { demoPaidWinnersResponse, readDemoPaidWinners } = require('./paid-winners');
 const { WebSocket } = require('ws');
-const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckReply } = require('./engine');
+const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckReply } = require('./engine');
 const port = Number(process.env.PORT || 38741);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -22,6 +22,11 @@ state.round = { mode: 'keyword', activeMinutes: 5, level: 'everyone', ...state.r
 if (state.round.cooldownMinutes === undefined) state.round.cooldownMinutes = state.round.cooldown > 0 ? 1440 : 0;
 delete state.round.cooldown;
 state.participations ||= {};
+state.winnerMessages ||= {};
+// Never replay an uncertain send after a crash or restart.
+for (const winner of [...Object.values(state.histories).flat(), state.round.winner].filter(Boolean)) {
+  if (winner.announcement?.status === 'pending') Object.assign(winner.announcement, { status: 'not-sent', reason: 'The server restarted before delivery was confirmed.' });
+}
 const participation = () => state.participations[state.channel] ||= {};
 // Older versions did not record participation. Count the saved pool once,
 // without inventing participation in giveaways we never tracked.
@@ -29,9 +34,32 @@ for (const entrant of state.round.entrants) if (!entrant.luckEntries) trackEntry
 let connection = { status: 'offline', message: 'Connect your Twitch channel to get started.' };
 let socket, reconnectTimer, attempts = 0, credentials = null, buffer = '', stopped = false;
 const clients = new Set();
+const instanceId = randomUUID();
+let revision = 0;
 const chat = [];
 let persistTimer, publishTimer;
 const history = () => state.histories[state.channel] ||= [];
+const messageTemplate = () => state.winnerMessages[state.channel] || DEFAULT_WINNER_MESSAGE;
+const announcementQueue = [];
+let announcementTimer;
+function canWriteChat() { return state.channel === '__demo__' || (connection.status === 'connected' && credentials?.writeEnabled && credentials?.scopes?.includes('chat:edit') && socket?.readyState === WebSocket.OPEN); }
+function drainAnnouncements() {
+  announcementTimer = null;
+  while (announcementQueue.length) {
+    const { winner, channel } = announcementQueue[0], delivery = winner.announcement;
+    if (channel !== state.channel || !canWriteChat()) {
+      Object.assign(delivery, { status: 'not-sent', reason: channel !== state.channel ? 'The channel changed before sending.' : 'Read + Write Chat must be connected to announce winners automatically.' });
+    } else {
+      const remaining = 1700 - (Date.now() - lastSent);
+      if (remaining > 0) { announcementTimer = setTimeout(drainAnnouncements, remaining + 10); return; }
+      try {
+        if (!sendChat(delivery.message)) throw new Error('Chat was disconnected before the announcement could be sent.');
+        Object.assign(delivery, { status: channel === '__demo__' ? 'demo' : 'sent', sentAt: new Date().toISOString() });
+      } catch (error) { Object.assign(delivery, { status: 'not-sent', reason: error.message }); }
+    }
+    announcementQueue.shift(); save(); publish();
+  }
+}
 let paidWinnerCache = { checkedAt: null, records: [] };
 function refreshDemoPayouts() { paidWinnerCache = { checkedAt: new Date().toISOString(), records: readDemoPaidWinners() }; }
 const paidWinners = () => state.channel === '__demo__' ? paidWinnerCache.records : [];
@@ -55,9 +83,9 @@ function snapshot() {
   const entrants = pool(state.round, history().filter(h => h.roundId !== state.round.id), state.round.winner ? Date.parse(state.round.winner.at) : Date.now(), paidWinners());
   const total = entrants.reduce((sum, e) => sum + e.weight, 0);
   const selectedWinner = state.round.winner ? paidWinners().find(w => w.login === state.round.winner.login) || null : null;
-  return { channel: state.channel, demo: state.channel === '__demo__', payouts: { source: state.channel === '__demo__' ? 'demo' : 'not-connected', checkedAt: state.channel === '__demo__' ? paidWinnerCache.checkedAt : null, refreshSeconds: 30, selectedWinner }, serverNow: new Date().toISOString(), round: { ...state.round, entrants: entrants.map(({ paidWinner, ...e }) => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canRead: connection.status === 'connected', canSend: state.channel === '__demo__' || (connection.status === 'connected' && Boolean(credentials?.writeEnabled && credentials?.scopes?.includes('chat:edit'))) };
+  return { instanceId, revision, channel: state.channel, winnerMessageTemplate: messageTemplate(), demo: state.channel === '__demo__', payouts: { source: state.channel === '__demo__' ? 'demo' : 'not-connected', checkedAt: state.channel === '__demo__' ? paidWinnerCache.checkedAt : null, refreshSeconds: 30, selectedWinner }, serverNow: new Date().toISOString(), round: { ...state.round, entrants: entrants.map(({ paidWinner, ...e }) => ({ ...e, odds: total ? e.weight / total : 0 })) }, history: history(), connection, chat, canRead: connection.status === 'connected', canSend: Boolean(canWriteChat()) };
 }
-function publish() { const msg = `data: ${JSON.stringify(snapshot())}\n\n`; for (const client of clients) client.write(msg); }
+function publish() { revision++; const msg = `data: ${JSON.stringify(snapshot())}\n\n`; for (const client of clients) client.write(msg); }
 function publishSoon() { if (!publishTimer) publishTimer = setTimeout(() => { publishTimer = null; publish(); }, 200); }
 function saveSoon() { if (!persistTimer) persistTimer = setTimeout(save, 250); }
 function status(value, message) { connection = { status: value, message }; publish(); }
@@ -94,7 +122,7 @@ function connect() {
       message.subscriber = /(?:^|;)subscriber=1(?:;| )/.test(line);
       message.messageId = line.match(/(?:^@|;)id=([^; ]+)/)?.[1];
       const asksLuck = matchesKeyword(message.text, '!luck');
-      if (asksLuck && connection.status === 'connected' && credentials?.writeEnabled && Date.now() - lastSent >= 1700) sendChat(luckReply(state.round, history(), participation(), message, paidWinners()));
+      if (asksLuck && !announcementQueue.length && connection.status === 'connected' && credentials?.writeEnabled && Date.now() - lastSent >= 1700) sendChat(luckReply(state.round, history(), participation(), message, paidWinners()));
       const qualifies = !asksLuck && permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || matchesKeyword(message.text, state.round.keyword));
       const accepted = qualifies && enter(state.round, message.login, message.displayName, message.userId, participation());
       if (qualifies && state.round.status === 'open') {
@@ -137,14 +165,10 @@ async function action(route, body) {
     if (state.channel !== channel) { state.channel = channel; state.round = newRound(); chat.length = 0; }
     attempts = 0; credentials = auth; connect();
   } else if (route === 'disconnect') disconnect();
-  else if (route === 'announce') {
-    if (!round.winner) throw new Error('Draw a winner first.');
-    if (!sendChat(winnerAnnouncement(round.winner))) throw new Error('Choose Read + Write Chat with a chat:edit token to send. Wait a moment between messages.');
-  } else if (route === 'chat/send') {
-    const text = chatText(body.message);
-    if (!sendChat(text)) throw new Error('Choose Read + Write Chat with a chat:edit token to send. Wait a moment between messages.');
-  }
-  else if (route === 'demo') {
+  else if (route === 'winner-message') {
+    if (!state.channel || body.channel !== state.channel) throw new Error('The channel changed. Customize the message again.');
+    state.winnerMessages[state.channel] = winnerMessageTemplate(body.template);
+  } else if (route === 'demo') {
     disconnect(); state.channel = '__demo__'; state.round = newRound(); chat.length = 0;
     refreshDemoPayouts();
     state.round.status = 'open';
@@ -184,7 +208,15 @@ async function action(route, body) {
     if (round.status !== 'open') throw new Error('Entries are not open.'); round.status = 'closed'; round.closedAt = new Date().toISOString();
   } else if (route === 'draw') {
     if (body.roundId && body.roundId !== round.id) throw new Error('The giveaway changed. Review the current entry pool before rolling.');
-    draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost), paidWinners());
+    const template = winnerMessageTemplate(body.winnerMessageTemplate === undefined ? messageTemplate() : body.winnerMessageTemplate);
+    // Validate the longest allowed login before selecting, including repeated placeholders.
+    winnerAnnouncement({ login: 'a'.repeat(25) }, template);
+    const winner = draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost), paidWinners());
+    state.winnerMessages[state.channel] = template;
+    winner.announcement = { status: 'pending', message: winnerAnnouncement(winner, template) };
+    // Save the winner and delivery intent before allowing the send to run.
+    save(); announcementQueue.push({ winner, channel: state.channel });
+    if (!announcementTimer) announcementTimer = setTimeout(drainAnnouncements, 0);
   }
   else if (route === 'new') {
     if (round.status === 'open') throw new Error('Close entries before starting a new giveaway.');
@@ -231,4 +263,8 @@ const server = http.createServer(async (req, res) => {
 const heartbeat = setInterval(() => { for (const client of clients) client.write(': heartbeat\n\n'); if ((state.round.mode === 'active' && state.round.status === 'open') || (state.round.cooldownMinutes > 0 && ['open', 'closed'].includes(state.round.status))) publish(); }, 20000);
 const payoutRefresh = setInterval(() => { if (state.channel === '__demo__') { refreshDemoPayouts(); publish(); } }, 30000);
 server.listen(port, '127.0.0.1', () => console.log(`MitchLucky is ready at http://127.0.0.1:${port}`));
-process.on('SIGINT', () => { disconnect(); clearInterval(heartbeat); clearInterval(payoutRefresh); server.close(); process.exit(); });
+process.on('SIGINT', () => {
+  clearTimeout(announcementTimer);
+  for (const { winner } of announcementQueue) Object.assign(winner.announcement, { status: 'not-sent', reason: 'The server stopped before sending.' });
+  disconnect(); clearInterval(heartbeat); clearInterval(payoutRefresh); server.close(); process.exit();
+});

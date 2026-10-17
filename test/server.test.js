@@ -35,10 +35,9 @@ test('giveaways remember winners automatically across restarts without an import
   result = await post('demo/payouts/refresh');
   assert.equal(result.body.payouts.selectedWinner, null);
   assert.equal((await post('chat/send', { message: 'bad\nmessage' })).status, 400);
-  result = await post('chat/send', { message: 'Congratulations! You won.' });
+  result = await post('winner-message', { channel: '__demo__', template: 'Congratulations {winner}! You won.' });
   assert.equal(result.status, 200);
-  assert.equal(result.body.chat.at(-1).text, 'Congratulations! You won.');
-  assert.equal(result.body.chat.at(-1).displayName, 'MitchLucky (demo)');
+  assert.equal(result.body.winnerMessageTemplate, 'Congratulations {winner}! You won.');
   assert.equal((await post('settings', { boost: 50, cooldownMinutes: 0, keyword: '!luck' })).status, 400);
   const roundId = result.body.round.id;
   assert.equal((await post('luck', { roundId: 'old-round', boost: 40 })).status, 400);

@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state, dirty = false, boostDirty = false, rolling = false, pending = false, toastTimer, clockOffsetMs = 0, draftEdited = false, draftWinnerId = null;
+let state, dirty = false, boostDirty = false, rolling = false, pending = false, toastTimer, clockOffsetMs = 0, templateDirty = false, messageSaveTimer;
 let apiQueue = Promise.resolve();
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = value => `${(value * 100).toFixed(value > 0 && value < .001 ? 4 : 2)}%`;
@@ -8,7 +8,7 @@ function paidWinnerTag(winner) {
   const amount = (winner.totalPaidCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return '<span class="paid-winner-tag">Already won · ' + winner.winCount + (winner.winCount === 1 ? ' win' : ' wins') + '</span><small class="paid-winner-total">' + escapeHtml(winner.currency) + ' ' + amount + ' paid · demo</small>';
 }
-const announcement = winner => `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`;
+
 function elapsedLabel(start) {
   const seconds = Math.max(0, Math.floor((Date.now() + clockOffsetMs - Date.parse(start)) / 1000));
   const pad = n => String(n).padStart(2, '0');
@@ -36,7 +36,10 @@ function updateBoost() {
   $('weight-explanation').textContent = `Never-winners earn +5% draw weight per giveaway entered, up to +${value}% (${(1 + value / 100).toFixed(2)}×). First entry: +${Math.min(5, value)}%. Winning removes the bonus. This is extra weight, not a guaranteed win chance.`;
 }
 function render(next) {
+  if (state?.instanceId === next.instanceId && next.revision < state.revision) return;
   const changedRound = state?.round.id !== next.round.id;
+  const changedChannel = state?.channel !== next.channel;
+  if (changedChannel) { templateDirty = false; clearTimeout(messageSaveTimer); }
   state = next; const { round, connection, demo, history } = state;
   if (next.serverNow) clockOffsetMs = Date.parse(next.serverNow) - Date.now();
   $('channel-label').textContent = demo ? 'Demo sandbox' : state.channel ? `#${state.channel}` : 'Your channel';
@@ -73,13 +76,11 @@ function render(next) {
   $('payout-refresh').disabled = !demo;
   renderEntrants();
   $('chat-dot').className = `chat-dot ${connection.status === 'connected' ? 'live' : ''}`;
-  $('send-chat').disabled = !state.canSend;
-  $('use-winner-message').disabled = !round.winner;
-  $('write-status').textContent = demo ? 'Sandbox: messages stay here and are not sent to Twitch.' : state.canSend ? 'Read + Write Chat connected. Messages post as your authenticated Twitch account.' : 'Read-only. Choose Read + Write Chat in Channel Settings to send messages.';
-  if (round.winner && draftWinnerId !== round.winner.id) {
-    if (!draftEdited) $('chat-message').value = announcement(round.winner);
-    draftWinnerId = round.winner.id;
-  }
+  if (!templateDirty || changedChannel) $('winner-message').value = state.winnerMessageTemplate;
+  $('winner-message').disabled = !state.channel || round.status === 'drawn';
+  const delivery = round.winner?.announcement;
+  $('announcement-delivery').textContent = delivery?.status === 'pending' ? 'Winner selected — announcement queued…' : delivery?.status === 'demo' ? 'Winner message posted automatically in this demo. Nothing was sent to Twitch.' : delivery?.status === 'sent' ? 'Winner message sent automatically to Twitch.' : delivery?.status === 'not-sent' ? 'Winner selected. Message not sent: ' + delivery.reason : round.winner ? 'No automatic message was scheduled for this earlier selection.' : demo ? 'Sent automatically after selection. Demo messages stay here.' : state.canSend ? 'Sent automatically after selection through Read + Write Chat.' : 'Connect Read + Write Chat to announce winners automatically.';
+  $('announcement-delivery').className = 'help' + (delivery?.status === 'not-sent' ? ' delivery-error' : '');
   $('chat-footer').textContent = `${round.mode === 'active' ? `Active viewers · last ${round.activeMinutes} min` : `Watching for ${round.keyword}`} · ${round.status === 'open' ? 'Collecting entries' : 'Entries paused'}`;
   $('chat').innerHTML = state.chat.length ? state.chat.slice(-20).map(c => `<div class="chat-line"><strong>${escapeHtml(c.displayName)}</strong> ${escapeHtml(c.text)}${c.entered ? '<span class="entry-tag">ENTERED</span>' : ''}</div>`).join('') : `<div class="chat-empty">${demo ? 'Demo sandbox. Connect Twitch to see live chat.' : escapeHtml(connection.message)}</div>`;
   $('chat').scrollTop = $('chat').scrollHeight;
@@ -125,7 +126,8 @@ for (const name of ['close', 'disconnect']) $(name).onclick = () => api(name);
 $('draw').onclick = async () => {
   if (rolling) return;
   rolling = true; $('draw').disabled = true;
-  const ok = await api('draw', { roundId: state.round.id, boost: Number($('boost').value) });
+  const ok = await api('draw', { roundId: state.round.id, boost: Number($('boost').value), winnerMessageTemplate: $('winner-message').value });
+  if (ok) { templateDirty = false; clearTimeout(messageSaveTimer); $('message-save-status').textContent = 'Message saved'; }
   rolling = false;
   if (!ok) render(state);
 };
@@ -135,17 +137,23 @@ $('connect-open').onclick = () => { $('channel').value = state?.demo ? '' : stat
 $('chat-access').onchange = () => { $('token-details').open = $('chat-access').value === 'write'; };
 document.querySelectorAll('.dismiss').forEach(button => button.onclick = () => button.closest('dialog').close());
 $('connect-form').onsubmit = async event => { event.preventDefault(); if (state?.round.entrants.length && $('channel').value.toLowerCase() !== state.channel && !confirm('Switch channels and clear the current entry pool? Winner history is preserved.')) return; if (await api('connect', { channel: $('channel').value, token: $('token').value.trim(), writeEnabled: $('chat-access').value === 'write' })) { $('token').value = ''; $('connect-dialog').close(); } };
-$('chat-message').oninput = () => { draftEdited = true; };
-$('use-winner-message').onclick = () => { $('chat-message').value = announcement(state.round.winner); draftEdited = false; };
-$('use-luck-rules').onclick = () => {
-  $('chat-message').value = `Giveaway luck: never won here? Earn +5% entry weight each giveaway you enter, up to +${state.round.boost}%. One increase per giveaway, not per message. Winning removes the bonus. Extra weight is not your win chance. Type !luck to check yours.`;
-  draftEdited = true;
+async function saveWinnerMessage() {
+  clearTimeout(messageSaveTimer);
+  if (!templateDirty || !state?.channel) return;
+  const template = $('winner-message').value, channel = state.channel;
+  $('message-save-status').textContent = 'Saving…';
+  const ok = await api('winner-message', { template, channel });
+  if (channel === state.channel && template === $('winner-message').value) {
+    templateDirty = !ok;
+    $('message-save-status').textContent = ok ? 'Message saved automatically' : 'Could not save — check the message';
+  }
+}
+$('winner-message').oninput = () => {
+  templateDirty = true; clearTimeout(messageSaveTimer);
+  $('message-save-status').textContent = 'Unsaved changes';
+  messageSaveTimer = setTimeout(saveWinnerMessage, 500);
 };
-$('chat-send-form').onsubmit = async event => {
-  event.preventDefault(); $('send-chat').disabled = true;
-  if (await api('chat/send', { message: $('chat-message').value })) { $('chat-message').value = ''; draftEdited = false; toast(state.demo ? 'Demo message added locally.' : 'Message sent to Twitch.'); }
-  $('send-chat').disabled = !state.canSend;
-};
+$('winner-message').onblur = saveWinnerMessage;
 $('export').onclick = () => { const blob = new Blob([JSON.stringify({ channel: state.channel, history: state.history }, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mitchlucky-${state.channel || 'channel'}-winners.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
 const events = new EventSource('/api/events');
 events.onmessage = event => render(JSON.parse(event.data));
