@@ -16,7 +16,7 @@ function routeGiveaway() {
   document.querySelector('.breadcrumb').textContent = `Control Panel / ${isHistory ? 'Winner History' : 'Giveaways'}`;
   document.querySelector('.dashboard-grid').hidden = isHistory;
   $('history').hidden = !isHistory;
-  document.querySelector('.page-heading h1').innerHTML = isHistory ? 'Winner History' : 'Giveaways <small>Enter. Roll. Remember.</small>';
+  document.querySelector('.page-heading h1').innerHTML = isHistory ? 'Winner History' : 'Giveaways <small>Hunt. Before. Punt</small>';
   $('demo').hidden = isHistory;
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.hash === (isHistory ? '#history' : '#giveaway')));
 }
