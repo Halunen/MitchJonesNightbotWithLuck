@@ -37,8 +37,29 @@ If the selected viewer has no matching paid-win record, the card instead shows *
 | Automatic winner announcements | Read incoming chat and automatically announce the selected winner using a customizable message. |
 | Viewer explanations | Participation counts, individual bonuses, actual chances, and automatic `!luck` replies. |
 | Winner history | Save selected winners per channel, review recent results, and export history as JSON. |
-| Optional winner cooldown | Exclude recent local winners for a selected period, from 15 minutes to 30 days. Disabled by default. |
+| [Exclude previous winners](#exclude-previous-winners) | Automatically exclude recent local winners with a timed cooldown, or manually exclude individual viewers before rolling. |
 | Paid-winner preview | **Demo only:** show “Already won” badges, win counts, and sample payout totals on the selected winner card, plus refresh status. |
+
+## Exclude previous winners
+
+**You can exclude previous winners from a giveaway.** They remain eligible at standard luck by default; increasing first-win luck alone does not exclude them.
+
+### Automatically exclude recent winners
+
+1. Start a **New Giveaway** so its rules are editable.
+2. Expand **Optional winner cooldown** in the Giveaway panel.
+3. Choose how long a recent winner must wait, such as **24 hours**. Available periods range from **15 minutes to 30 days**; **Disabled** is the default.
+4. Save or open entries. Viewers with a local, non-rerolled win inside that period are marked **Cooldown**, receive **0% chance**, and cannot be selected until the cooldown expires.
+
+For example, a 24-hour cooldown excludes anyone selected as a winner by MitchLucky during the last 24 hours. Selecting a time window does not permanently ban every past winner.
+
+### Manually exclude a viewer
+
+While entries are open or paused, find the viewer using **Search users** and click the blue eligibility checkbox beside their name. They are marked **Excluded**, receive **0% chance**, and are skipped by the draw and subsequent rerolls. You can include them again before drawing. A new giveaway starts a fresh entry pool.
+
+Rerolling also automatically skips everyone already selected in that same giveaway, without requiring manual exclusion.
+
+The timed cooldown currently uses MitchLucky's local selection history. Fictional paid-winner demo records have no payout dates, so they do not trigger the timed cooldown. Their badges alone do not exclude them; manual exclusion still works. The live payout-database connection is pending.
 
 ## Winner workflow: roll, reroll, or start fresh
 
