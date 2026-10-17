@@ -4,6 +4,8 @@
 
 A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped luck boost for viewers who have never won. Built for communities where repeat winners are common and giveaways can attract thousands of entrants.
 
+The dashboard uses custom MitchLucky branding and your logo, with focused **Giveaways** and **Winner History** screens. It currently runs locally; the external paid-winners database connection is the next integration.
+
 ## Example: select a winner and instantly see their previous wins
 
 As soon as the bot selects a viewer, the winner card immediately shows whether they have a previous paid-win record in the available demo data. Individual payout details appear only after selection.
@@ -36,6 +38,22 @@ If the selected viewer has no matching paid-win record, the card instead shows *
 | Optional winner cooldown | Exclude recent local winners for a selected period, from 15 minutes to 30 days. Disabled by default. |
 | Paid-winner preview | **Demo only:** show “Already won” badges, win counts, and sample payout totals on the selected winner card, plus refresh status. |
 
+## Winner workflow: roll, reroll, or start fresh
+
+| Action | Entry pool | Luck progress | What happens next |
+| --- | --- | --- | --- |
+| **Roll It!** | Uses the current pool and stops new entries. No separate close step required. | Uses the displayed luck cap. | Selects a winner, shows their available paid-win status, starts the timer, and queues the automatic announcement. |
+| **Reroll Giveaway** | Keeps the same pool and skips every viewer already selected in this giveaway. Entries stay closed. | Does not add participation or increase anyone's bonus. | Replaces the selected winner, restarts their timer, checks their available paid-win status, and announces them automatically. |
+| **New Giveaway** | Clears the pool so viewers can enter again. Keeps the giveaway rules and saved message. | A viewer earns their next increase only when they enter the new giveaway. | Returns to the giveaway controls. Open entries when ready. |
+
+After selection, **Reroll Giveaway** and **New Giveaway** are the two controls on the winner card. Earlier selections are marked **Rerolled** in history and excluded from later rolls in that same giveaway. They do not count as local wins or trigger local winner cooldowns. Paid-winner database records are never changed by a reroll.
+
+Reroll uses the original keyword, manual exclusions, luck cap, and activity cutoff. It chooses a different eligible viewer; if nobody else remains eligible, the existing winner is preserved. Stale reroll requests are rejected so a double-click or another open dashboard cannot silently replace a newer selection.
+
+![A rerolled giveaway keeps its entrants, marks the previous selection Rerolled, selects CUDA, and automatically posts the new winner announcement](docs/demo.png)
+
+**The 60-second response window is message text, not an automatic timeout.** The timer counts upward from selection and does not reset when someone speaks. It continues across page reloads and server restarts. You decide when to reroll; the bot does not reroll automatically at 60 seconds.
+
 ## Start locally
 
 Requires **Node.js 22 or newer**.
@@ -52,6 +70,8 @@ The server listens on `127.0.0.1`, so it is accessible from this computer. Keep 
 ## Try the demo
 
 Click **Try Demo**. No Twitch account or token is needed.
+
+You can test rolling, rerolling, automatic announcements, the luck cap, and both selected-winner outcomes without connecting Twitch. Switching to the demo replaces the current entry pool after confirmation while keeping real channel history separate.
 
 The demo starts with **CDEW, AndyM, CUDA, and GJake**, followed by eight randomly selected World of Warcraft characters. Demo messages stay local and are never sent to Twitch. Demo participation and draw history are separate from real channel history.
 
@@ -100,6 +120,8 @@ For viewers with no known wins:
 
 Each **distinct giveaway entered** counts once. Starting a new giveaway clears the pool; a viewer must enter again to earn another increase. Repeating the keyword, pausing/reopening entries, moving the slider, and giveaways a viewer does not enter add nothing. Bonuses add rather than compound. Prior winners get standard **1.00×** weight.
 
+The keyword matches the complete chat message, ignoring surrounding whitespace and capitalization: `yo`, `YO`, and ` Yo ` work; `yoyo` and `yo chat` do not. **Reset Eligibility** excludes the existing pool; it does not delete participation history or award another increase. You can include individual viewers again before drawing.
+
 The slider controls the **maximum extra weight**, not anyone's probability of winning. Actual odds are:
 
 ```text
@@ -122,13 +144,15 @@ Tokens are validated with Twitch, kept in server memory, and never saved. Anonym
 
 **Customize winner message** sets the announcement sent automatically after selection. The default is `Congratulations {winner}! You Won. You have 60 seconds to respond.`; `{winner}` becomes the selected viewer's Twitch @mention. The box saves automatically per channel, and Roll It! captures the text currently displayed, including recent edits. There are no manual Write Chat, Send, Winner Message, or Luck Rules controls.
 
+Customize the message before selection. Once a winner is shown, the message box is locked; **New Giveaway** makes it editable again. A reroll uses the saved template and mentions the new selected viewer. If an earlier winner's announcement is still queued when you reroll, that unsent announcement is canceled.
+
 Messages must be a single line of 1–425 characters; the final message must fit within 450 characters after replacing placeholders. Automatic sending requires an authenticated **Read + Write Chat** connection. Demo announcements appear only in the local Read Chat feed. The status below the message box shows queued, sent, demo, or not-sent results; the winner stays selected if chat writing is unavailable.
 
 Announcements respect the chat send rate limit and are sent once per selection. Reloading or restarting does not replay them. An interrupted send is marked unconfirmed/not sent instead of being retried automatically, to avoid duplicate announcements. A successful send status means the message was handed to the Twitch connection, not that Twitch acknowledged delivery. Old selections made before automatic announcements were added are not announced retroactively.
 
 With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; winner announcements take priority and rapid luck requests may not all receive replies. `!luck` is reserved for this command.
 
-The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. Once a winner is shown, choose **Reroll Giveaway** or **New Giveaway**. Reroll keeps the pool, keyword, eligibility exclusions, luck cap, participation progress, and original activity cutoff; it does not reopen entries. Viewers already selected in that giveaway are skipped. The new winner gets a fresh timer and automatic announcement. Superseded selections stay in history as **Rerolled** and do not count as local wins or start a local winner cooldown. Existing paid-winner records remain unchanged. If nobody else is eligible, the current winner stays selected and reroll is unavailable.
+The winner timer and reroll behavior are described in [Winner workflow](#winner-workflow-roll-reroll-or-start-fresh).
 
 ## Real paid-winners database: next integration
 
@@ -143,6 +167,7 @@ Local draw history records **selection**, not payment or prize claims. It is sep
 ## Data and configuration
 
 - `data/state.json` stores participation and selected-winner history per channel. Back up the `data` folder.
+- Custom announcement templates and announcement status are saved too. Refreshing a page never resends an announcement.
 - Fictional payout totals are read from the demo provider and are not persisted as payout history.
 - `PORT` changes the listening port; default: `38741`.
 - `DATA_DIR` selects another data directory. Run only one process per directory.
@@ -151,6 +176,7 @@ Local draw history records **selection**, not payment or prize claims. It is sep
 - The table displays up to 500 matching entrants; **all eligible entrants participate in the draw**. History shows the latest 100 results while retaining older records on disk.
 - A corrupt saved file stops startup rather than silently discarding history.
 - Local state, tokens, dependencies, and environment files are excluded from Git.
+- This is a focused giveaway tool. General Nightbot commands, moderation automation, and scheduled messages are not included.
 
 ## Development and verification
 
@@ -158,7 +184,7 @@ Local draw history records **selection**, not payment or prize claims. It is sep
 npm.cmd test
 ```
 
-Tests cover weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, demo paid-winner isolation, automatic announcement templates, rate limiting, and avoiding duplicate sends across restarts. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
+The current suite has **22 automated tests**, covering weighted draws, duplicate entries, participation growth and caps, account renames, time cooldowns, an 8,000-entrant odds calculation, saved history across restarts, demo paid-winner isolation, automatic announcement templates, rate limiting, and avoiding duplicate sends across restarts. Reroll tests also cover preserving the pool and participation, excluding earlier selections by username/user ID, retaining the activity cutoff, rejecting stale requests, and leaving the winner intact when the pool is exhausted. The 8,000-entrant test checks odds calculations; it is not a live Twitch load benchmark.
 
 Main files:
 
