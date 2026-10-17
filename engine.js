@@ -53,6 +53,9 @@ function luckReply(round, history, ledger, message, paidWinners = []) {
   return `@${message.login} ${view.luckEntries || 1} giveaway(s) entered with no recorded wins: +${view.bonus}% draw weight (${(1 + view.bonus / 100).toFixed(2)}x; cap +${round.boost}%). Current chance: ${total ? (view.weight / total * 100).toFixed(4) : '0.0000'}%. Once per giveaway; repeating the keyword adds nothing.`;
 }
 function pool(round, history, now = Date.now(), paidWinners = []) {
+  history = history.filter(h => !h.rerolled);
+  const previousNames = new Set((round.previousSelections || []).map(w => w.login));
+  const previousIds = new Set((round.previousSelections || []).map(w => w.userId).filter(Boolean));
   const paidByLogin = new Map(paidWinners.map(w => [w.login, w]));
   const cutoff = now - round.cooldownMinutes * 60000;
   const recentDraws = round.cooldownMinutes > 0 ? history.filter(h => !h.imported && Date.parse(h.at) > cutoff && Date.parse(h.at) <= now) : [];
@@ -73,9 +76,10 @@ function pool(round, history, now = Date.now(), paidWinners = []) {
     const wins = Math.max(localWins, paidWinner?.winCount || 0);
     const coolingDown = round.cooldownMinutes > 0 && (recent.has(e.login) || (e.userId && recentIds.has(e.userId)));
     const inactive = round.mode === 'active' && Date.parse(e.lastActiveAt || e.joinedAt) < (round.closedAt ? Date.parse(round.closedAt) : now) - round.activeMinutes * 60000;
-    const blocked = Boolean(e.excluded || coolingDown || inactive);
+    const previouslySelected = previousNames.has(e.login) || (e.userId && previousIds.has(e.userId));
+    const blocked = Boolean(e.excluded || previouslySelected || coolingDown || inactive);
     const bonus = wins ? 0 : luckBonus(e.luckEntries, round.boost);
-    return { ...e, wins, paidWinner, bonus, blocked, reason: e.excluded ? 'Excluded' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : 100 + bonus };
+    return { ...e, wins, paidWinner, bonus, blocked, reason: e.excluded ? 'Excluded' : previouslySelected ? 'Previously selected' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : 100 + bonus };
   });
 }
 function enter(round, login, displayName = login, userId = null, ledger = null) {
@@ -103,10 +107,24 @@ function draw(round, history, rng = randomInt, boost = round.boost, paidWinners 
   round.status = 'drawn';
   return winner;
 }
+function reroll(round, history, rng = randomInt, paidWinners = []) {
+  if (round.status !== 'drawn' || !round.winner) throw new Error('Select a winner before rerolling.');
+  const previous = round.winner;
+  const next = { ...round, status: 'closed', winner: null, previousSelections: [...(round.previousSelections || []), { login: previous.login, userId: previous.userId }] };
+  // Work on a copy so an exhausted pool leaves the current winner intact.
+  const activeHistory = history.filter(h => !h.rerolled && h.id !== previous.id);
+  const winner = draw(next, activeHistory, rng, round.boost, paidWinners);
+  previous.rerolled = true;
+  const record = history.find(h => h.id === previous.id);
+  if (record) record.rerolled = true;
+  history.push(winner);
+  Object.assign(round, next);
+  return winner;
+}
 function parseChat(line) {
   const match = line.match(/^(?:@([^ ]+) )?:([^! ]+)!\S+ PRIVMSG #([^ ]+) :([\s\S]*)$/);
   if (!match) return null;
   const tags = Object.fromEntries((match[1] || '').split(';').map(t => { const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
   return { login: normalize(match[2]), channel: normalize(match[3]), text: match[4], userId: tags['user-id'] || null, displayName: tags['display-name'] || match[2] };
 }
-module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckBonus, luckReply };
+module.exports = { normalize, validLogin, newRound, pool, enter, draw, reroll, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckBonus, luckReply };

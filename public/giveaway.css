@@ -9,6 +9,8 @@
 .winner-body .paid-winner-tag{font-size:12px;margin:5px 0 4px;padding:4px 8px}
 .winner-body .paid-winner-total{display:block;font-size:13px;color:#855600;line-height:1.8;margin-bottom:10px}
 .winner-body .paid-winner-empty{font-size:11px;color:#738596;margin:8px 0}
+.winner-actions{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 16px}
+.winner-actions .button{flex:1;white-space:nowrap}
 .payout-source{padding:12px 15px;background:#f0f7fc;border-bottom:1px solid #d9e6ef;font-size:11px;color:#41627c;line-height:1.6}
 .payout-source p{margin:3px 0 8px;font-size:10px;color:#6c8091}
 .payout-source-actions{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}

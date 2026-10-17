@@ -69,7 +69,10 @@ function render(next) {
   $('close').hidden = round.status !== 'open'; $('draw').hidden = !['open', 'closed'].includes(round.status); $('draw').disabled = rolling || !round.entrants.some(e => e.weight > 0);
   $('new').hidden = !['drawn', 'closed'].includes(round.status);
   document.querySelector('.giveaway-card').hidden = round.status === 'drawn';
-  (round.status === 'drawn' ? document.querySelector('.winner-card') : document.querySelector('.giveaway-actions')).appendChild($('new'));
+  (round.status === 'drawn' ? $('winner-actions') : document.querySelector('.giveaway-actions')).appendChild($('new'));
+  $('reroll').hidden = round.status !== 'drawn';
+  $('reroll').disabled = rolling || !round.entrants.some(e => e.weight > 0 && e.login !== round.winner?.login && !(e.userId && e.userId === round.winner?.userId));
+  $('reroll').title = $('reroll').disabled ? 'No other eligible entrants remain, or a roll is in progress.' : 'Choose another winner from this entry pool.';
   $('entry-count').textContent = round.entrants.length;
   $('payout-source').hidden = !demo;
   $('payout-status').textContent = demo ? 'Sample payouts · checked ' + new Date(state.payouts.checkedAt).toLocaleTimeString() + ' · refreshes every 30s' : '';
@@ -90,7 +93,7 @@ function render(next) {
   if ($('reset-eligibility')) $('reset-eligibility').disabled = !['open', 'closed'].includes(round.status);
   $('history-count').textContent = history.length;
   $('history-empty').hidden = history.length > 0;
-  $('history-rows').innerHTML = [...history].reverse().slice(0, 100).map(h => `<tr><td class="viewer">${escapeHtml(h.displayName)}</td><td>${escapeHtml(h.title)}</td><td>${escapeHtml(new Date(h.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td><span class="weight ${h.imported || !h.firstWin ? 'normal' : ''}">${h.imported ? 'Imported winner' : h.firstWin ? '✧ First win' : 'Returning winner'}</span></td></tr>`).join('');
+  $('history-rows').innerHTML = [...history].reverse().slice(0, 100).map(h => `<tr><td class="viewer">${escapeHtml(h.displayName)}</td><td>${escapeHtml(h.title)}</td><td>${escapeHtml(new Date(h.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td><span class="weight ${h.rerolled || h.imported || !h.firstWin ? 'normal' : ''}">${h.rerolled ? 'Rerolled' : h.imported ? 'Imported winner' : h.firstWin ? '✧ First win' : 'Returning winner'}</span></td></tr>`).join('');
   window.renderGiveawayUI?.(state);
 }
 function renderEntrants() {
@@ -101,7 +104,7 @@ function renderEntrants() {
   const total = preview.reduce((sum, e) => sum + e.weight, 0);
   const entrants = preview.map(e => ({ ...e, odds: total ? e.weight / total : 0 })).filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
   $('empty').hidden = state.round.entrants.length > 0;
-  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins ? 'Standard luck' : 'No recorded wins'}">${escapeHtml(e.displayName)}<small>${e.wins ? 'Standard luck' : `${e.luckEntries || 1} giveaway${e.luckEntries === 1 || !e.luckEntries ? '' : 's'} entered · no wins`}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}" title="${e.wins ? 'Previous winner: standard weight' : `+5% per giveaway entered, capped at +${cap}%`}">${e.blocked ? escapeHtml(e.reason) : `+${e.bonus}% · ${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
+  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins ? 'Standard luck' : 'No recorded wins'}">${escapeHtml(e.displayName)}<small>${e.wins ? 'Standard luck' : `${e.luckEntries || 1} giveaway${e.luckEntries === 1 || !e.luckEntries ? '' : 's'} entered · no wins`}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}" title="${e.wins ? 'Previous winner: standard weight' : `+5% per giveaway entered, capped at +${cap}%`}">${e.blocked ? escapeHtml(e.reason === 'Previously selected' ? 'Rerolled' : e.reason) : `+${e.bonus}% · ${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
   $('pool-footer').textContent = `${entrants.length > 500 ? `Showing 500 of ${entrants.length} matching viewers. ` : ''}Exact chances update as viewers join. ${state.round.entrants.filter(e => e.blocked).length} ineligible.`;
 }
 for (const key of ['title', 'keyword', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`; });
@@ -129,7 +132,13 @@ $('draw').onclick = async () => {
   const ok = await api('draw', { roundId: state.round.id, boost: Number($('boost').value), winnerMessageTemplate: $('winner-message').value });
   if (ok) { templateDirty = false; clearTimeout(messageSaveTimer); $('message-save-status').textContent = 'Message saved'; }
   rolling = false;
-  if (!ok) render(state);
+  render(state);
+};
+$('reroll').onclick = async () => {
+  if (rolling || !state.round.winner) return;
+  rolling = true; $('reroll').disabled = true;
+  await api('reroll', { roundId: state.round.id, winnerId: state.round.winner.id, winnerMessageTemplate: $('winner-message').value });
+  rolling = false; render(state);
 };
 $('new').onclick = () => { if (state.round.entrants.length && !state.round.winner && !confirm('Clear this entry pool and start a new giveaway?')) return; api('new'); };
 $('demo').onclick = () => { if (state?.round.entrants.length && !confirm('Switch to the demo sandbox? This clears the current entry pool. Winner history is preserved.')) return; api('demo'); };

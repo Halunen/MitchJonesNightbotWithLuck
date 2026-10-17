@@ -14,6 +14,7 @@ A local Twitch giveaway dashboard inspired by Nightbot, with a gradual, capped l
 | One entry per viewer | Repeated messages add neither entries nor luck. Twitch user IDs prevent duplicate entries under renamed accounts when available. |
 | Gradual first-win luck | Never-winners earn +5% draw weight per giveaway they enter, capped at +25% by default. |
 | Live luck slider | Adjust the maximum bonus from 0% to 50% while entries are open or paused. Chances preview while dragging; the cap saves on release. |
+| Reroll without resetting | Select another winner from the same entry pool, skipping viewers already selected in that giveaway. |
 | Direct winner selection | Click **Roll It!** while entries are open. One action stops entries and selects a winner using the displayed cap. |
 | Eligibility controls | Everyone, Subscribers + Mods, Moderators, or Broadcaster. Exclude individual viewers or reset eligibility. |
 | Active User mode | Collect viewers who chat during a configurable 1–60 minute activity window. |
@@ -104,7 +105,7 @@ Draws use Node's cryptographically secure random generator. Participation progre
 2. Choose **Read Chat Only** or **Read + Write Chat**.
 3. For authenticated access, provide a Twitch user OAuth token with `chat:read`. Writing also requires `chat:edit` and explicitly selecting Read + Write Chat.
 4. Save giveaway rules, open entries, and let viewers enter. Click **Roll It!** when ready; closing first is optional.
-5. Use **New Giveaway** for another draw. Other entry rules stay locked once entries open; the luck cap remains adjustable.
+5. Use **Reroll Giveaway** to pick someone else from the same pool, or **New Giveaway** to collect fresh entries. Other entry rules stay locked once entries open; the luck cap remains adjustable.
 
 Tokens are validated with Twitch, kept in server memory, and never saved. Anonymous read-only IRC is supported but may be restricted by Twitch. Authenticated live Twitch behavior still needs verification with your user token.
 
@@ -116,7 +117,7 @@ Announcements respect the chat send rate limit and are sent once per selection. 
 
 With writing enabled, viewers can type `!luck` to check their participation, weight bonus, and current odds without entering the giveaway. Replies share the chat send rate limit; winner announcements take priority and rapid luck requests may not all receive replies. `!luck` is reserved for this command.
 
-The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. A completed draw cannot be rolled again. Once a winner is shown, **New Giveaway** is the only control on the winner card.
+The timer starts when a winner is selected, continues across reloads and restarts, and never resets because someone speaks. There is no automatic timeout or reroll. Once a winner is shown, choose **Reroll Giveaway** or **New Giveaway**. Reroll keeps the pool, keyword, eligibility exclusions, luck cap, participation progress, and original activity cutoff; it does not reopen entries. Viewers already selected in that giveaway are skipped. The new winner gets a fresh timer and automatic announcement. Superseded selections stay in history as **Rerolled** and do not count as local wins or start a local winner cooldown. Existing paid-winner records remain unchanged. If nobody else is eligible, the current winner stays selected and reroll is unavailable.
 
 ## Real paid-winners database: next integration
 

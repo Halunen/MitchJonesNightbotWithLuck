@@ -43,6 +43,16 @@ test('announcements send automatically once, respect rate limits, persist settin
   await post('demo'); await post('draw'); s = await delivered();
   assert.equal(s.round.winner.announcement.status, 'demo'); assert.equal(s.chat.length, 1);
   assert.equal(s.chat[0].text, `GG @${s.round.winner.login}! You won.`);
+  const previousWinner = s.round.winner, roundId = s.round.id;
+  const progress = s.round.entrants.map(e => e.luckEntries);
+  const rerolled = await post('reroll', { roundId, winnerId: previousWinner.id });
+  assert.equal(rerolled.status, 200); assert.equal(rerolled.body.round.id, roundId);
+  assert.notEqual(rerolled.body.round.winner.login, previousWinner.login);
+  assert.deepEqual(rerolled.body.round.entrants.map(e => e.luckEntries), progress);
+  assert.equal(rerolled.body.history.find(w => w.id === previousWinner.id).rerolled, true);
+  assert.equal((await post('reroll', { roundId, winnerId: previousWinner.id })).status, 400);
+  s = await delivered(); assert.equal(s.chat.length, 2);
+  assert.equal(s.chat.at(-1).text, `GG @${s.round.winner.login}! You won.`);
   const sentAt = s.round.winner.announcement.sentAt;
   await stop(); await start(); s = await snapshot();
   assert.equal(s.winnerMessageTemplate, 'GG {winner}! You won.');

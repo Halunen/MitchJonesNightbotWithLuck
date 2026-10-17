@@ -4,7 +4,7 @@ const path = require('node:path');
 const { randomInt, randomUUID } = require('node:crypto');
 const { demoPaidWinnersResponse, readDemoPaidWinners } = require('./paid-winners');
 const { WebSocket } = require('ws');
-const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckReply } = require('./engine');
+const { normalize, validLogin, newRound, pool, enter, draw, reroll, parseChat, permitted, matchesKeyword, winnerAnnouncement, winnerMessageTemplate, DEFAULT_WINNER_MESSAGE, chatText, trackEntry, luckReply } = require('./engine');
 const port = Number(process.env.PORT || 38741);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -47,6 +47,7 @@ function drainAnnouncements() {
   announcementTimer = null;
   while (announcementQueue.length) {
     const { winner, channel } = announcementQueue[0], delivery = winner.announcement;
+    if (delivery.status !== 'pending') { announcementQueue.shift(); continue; }
     if (channel !== state.channel || !canWriteChat()) {
       Object.assign(delivery, { status: 'not-sent', reason: channel !== state.channel ? 'The channel changed before sending.' : 'Read + Write Chat must be connected to announce winners automatically.' });
     } else {
@@ -206,12 +207,15 @@ async function action(route, body) {
     delete round.closedAt;
   } else if (route === 'close') {
     if (round.status !== 'open') throw new Error('Entries are not open.'); round.status = 'closed'; round.closedAt = new Date().toISOString();
-  } else if (route === 'draw') {
+  } else if (route === 'draw' || route === 'reroll') {
     if (body.roundId && body.roundId !== round.id) throw new Error('The giveaway changed. Review the current entry pool before rolling.');
+    if (route === 'reroll' && (body.roundId !== round.id || !round.winner || body.winnerId !== round.winner.id)) throw new Error('The selected winner changed. Review the current winner before rerolling.');
     const template = winnerMessageTemplate(body.winnerMessageTemplate === undefined ? messageTemplate() : body.winnerMessageTemplate);
     // Validate the longest allowed login before selecting, including repeated placeholders.
     winnerAnnouncement({ login: 'a'.repeat(25) }, template);
-    const winner = draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost), paidWinners());
+    const previous = round.winner;
+    const winner = route === 'reroll' ? reroll(round, history(), undefined, paidWinners()) : draw(round, history(), undefined, body.boost === undefined ? round.boost : Number(body.boost), paidWinners());
+    if (route === 'reroll' && previous?.announcement?.status === 'pending') Object.assign(previous.announcement, { status: 'not-sent', reason: 'Rerolled before the announcement was sent.' });
     state.winnerMessages[state.channel] = template;
     winner.announcement = { status: 'pending', message: winnerAnnouncement(winner, template) };
     // Save the winner and delivery intent before allowing the send to run.
