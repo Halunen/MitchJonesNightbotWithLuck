@@ -34,9 +34,12 @@ test('giveaways remember winners automatically across restarts without an import
   result = await post('luck', { roundId, boost: 40 });
   assert.equal(result.body.round.status, 'open'); assert.equal(result.body.round.boost, 40);
   assert.equal(result.body.round.entrants.length, 12);
+  assert.ok(result.body.round.entrants.every(e => e.luckEntries === 1));
+  await post('close'); result = await post('open');
+  assert.ok(result.body.round.entrants.every(e => e.luckEntries === 1));
   result = await post('draw', { roundId, boost: 45 }); assert.equal(result.body.round.status, 'drawn');
   const winner = result.body.round.winner; assert.ok(winner.login); assert.equal((await post('draw')).status, 400);
-  assert.equal(winner.boost, 45); assert.equal(winner.odds, (winner.firstWin ? 145 : 100) / (11 * 145 + 100));
+  assert.equal(winner.boost, 45); assert.equal(winner.odds, (winner.firstWin ? 105 : 100) / (11 * 105 + 100));
   assert.equal((await post('luck', { roundId, boost: 50 })).status, 400);
   assert.equal(result.body.history.filter(h => h.id === winner.id).length, 1);
   assert.equal(result.body.bot, undefined);
@@ -48,7 +51,13 @@ test('giveaways remember winners automatically across restarts without an import
   assert.equal(result.body.round.winner.at, winner.at);
   result = await post('demo');
   assert.equal(result.body.round.entrants.find(e => e.login === winner.login).weight, 100);
-  await post('close'); await post('new');
+  const loser = result.body.round.entrants.find(e => !e.wins);
+  assert.equal(loser.luckEntries, 2); assert.equal(loser.weight, 110);
+  await stop(); await start();
+  result = { body: await (await fetch(`${origin}/api/state`)).json() };
+  assert.equal(result.body.round.entrants.find(e => e.login === loser.login).luckEntries, 2);
+  await post('new');
+  assert.equal((await post('settings', { title: 'Test', keyword: '!LUCK', boost: 25, cooldownMinutes: 0 })).status, 400);
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: 60 })).status, 200);
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: -1 })).status, 400);
   assert.equal((await post('settings', { title: 'Test', keyword: '!enter', boost: 25, cooldownMinutes: 43201 })).status, 400);

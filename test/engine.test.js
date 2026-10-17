@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText } = require('../engine');
-const fixture = () => { const round = newRound(); round.status = 'open'; enter(round, 'newviewer', 'NewViewer', '1'); enter(round, 'pastwinner', 'PastWinner', '2'); return { round, history: [{ login: 'pastwinner', userId: '2', imported: false }] }; };
-test('new viewers get exactly 25% extra weight; odds sum to one', () => {
+const { newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, luckReply } = require('../engine');
+const fixture = () => { const round = newRound(); round.status = 'open'; enter(round, 'newviewer', 'NewViewer', '1'); enter(round, 'pastwinner', 'PastWinner', '2'); round.entrants[0].luckEntries = 10; return { round, history: [{ login: 'pastwinner', userId: '2', imported: false }] }; };
+test('experienced never-winners reach the configured cap; previous winners stay at standard weight', () => {
   const { round, history } = fixture(); const entries = pool(round, history);
   assert.deepEqual(entries.map(e => e.weight), [125, 100]); assert.equal(entries[0].weight / 225, 5 / 9);
 });
@@ -87,4 +87,47 @@ test('winner message includes the winner and chat rejects invalid single-line me
   assert.equal(winnerAnnouncement({ login: 'viewer' }), 'Congratulations @viewer! You won.');
   assert.equal(chatText('  Hello chat!  '), 'Hello chat!');
   for (const text of ['', '  ', 'a'.repeat(451), 'hello\r\nJOIN #other', 'hello\0']) assert.throws(() => chatText(text), /single-line/);
+});
+
+test('participation grows once per entered giveaway, persists through reload and renames, and caps', () => {
+  let ledger = {};
+  for (let i = 1; i <= 12; i++) {
+    const round = newRound(); round.status = 'open';
+    const name = i > 2 ? 'renamedviewer' : 'viewer';
+    assert.equal(enter(round, name, name, '123', ledger), true);
+    assert.equal(enter(round, name.toUpperCase(), name, '123', ledger), false);
+    assert.equal(enter(round, 'anothername', name, '123', ledger), false);
+    round.status = 'closed'; round.status = 'open';
+    assert.equal(enter(round, name, name, '123', ledger), false);
+    const entry = pool(round, [])[0];
+    assert.equal(entry.luckEntries, i);
+    assert.equal(entry.bonus, Math.min(i * 5, 25));
+    assert.equal(entry.weight, 100 + Math.min(i * 5, 25));
+    assert.equal(pool({ ...round, boost: 50 }, [])[0].weight, 100 + Math.min(i * 5, 50));
+    assert.equal(pool({ ...round, boost: 0 }, [])[0].weight, 100);
+    ledger = JSON.parse(JSON.stringify(ledger));
+  }
+  const unrelated = newRound(); unrelated.status = 'open';
+  enter(unrelated, 'other', 'other', '999', ledger);
+  assert.equal(ledger['id:123'].count, 12);
+  const separateChannel = {}; enter(unrelated, 'viewer', 'viewer', '123', separateChannel);
+  assert.equal(separateChannel['id:123'].count, 1);
+});
+
+test('luck replies explain participation and actual odds without adding an entry', () => {
+  const round = newRound(); round.status = 'open'; const ledger = {};
+  enter(round, 'viewer', 'Viewer', '1', ledger);
+  assert.match(luckReply(round, [], ledger, { login: 'viewer', userId: '1' }), /1 giveaway\(s\).*\+5% draw weight.*1.05x.*Current chance: 100.0000%/);
+  assert.match(luckReply(round, [], ledger, { login: 'outsider', userId: '2' }), /not entered/);
+  assert.match(luckReply(round, [{ login: 'viewer', userId: '1' }], ledger, { login: 'viewer', userId: '1' }), /recorded win.*1.00x/);
+  assert.equal(round.entrants.length, 1); assert.equal(ledger['id:1'].count, 1);
+});
+
+test('8,000 entrants have normalized odds and a bounded participation advantage', () => {
+  const round = newRound(); round.boost = 50;
+  round.entrants = Array.from({ length: 8000 }, (_, i) => ({ login: `viewer${i}`, luckEntries: i === 0 ? 1000 : 1 }));
+  const entries = pool(round, []), total = entries.reduce((sum, e) => sum + e.weight, 0);
+  assert.equal(entries[0].weight, 150); assert.equal(entries[1].weight, 105);
+  assert.ok(entries.every(e => e.weight / total < .0002));
+  assert.ok(Math.abs(entries.reduce((sum, e) => sum + e.weight / total, 0) - 1) < 1e-12);
 });

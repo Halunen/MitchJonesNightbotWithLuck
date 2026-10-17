@@ -17,6 +17,31 @@ function chatText(value) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > 450 || /[\r\n\x00]/.test(value)) throw new Error('Enter a single-line message of 1–450 characters.');
   return value.trim();
 }
+const LUCK_STEP = 5;
+function luckBonus(entries, cap) { return Math.min(cap, Math.max(1, entries || 1) * LUCK_STEP); }
+// Each channel owns a ledger. Twitch IDs remain stable across name changes.
+function trackEntry(round, entrant, ledger) {
+  const idKey = entrant.userId ? `id:${entrant.userId}` : null, loginKey = `login:${entrant.login}`;
+  let record = (idKey && ledger[idKey]) || ledger[loginKey];
+  if (!record || (entrant.userId && record.userId && record.userId !== entrant.userId)) record = { count: 0 };
+  if (record.lastRoundId !== round.id) { record.count++; record.lastRoundId = round.id; }
+  if (entrant.userId) { record.userId = entrant.userId; ledger[idKey] = record; }
+  ledger[loginKey] = record;
+  entrant.luckEntries = record.count;
+}
+function luckReply(round, history, ledger, message) {
+  const entrant = round.entrants.find(e => message.userId ? e.userId === message.userId || (!e.userId && e.login === message.login) : e.login === message.login);
+  const record = (message.userId && ledger[`id:${message.userId}`]) || ledger[`login:${message.login}`];
+  const entry = entrant || { ...message, luckEntries: record?.count || 0 };
+  const view = pool({ ...round, entrants: [entry] }, history)[0];
+  if (view.wins) return `@${message.login} You have a recorded win, so your draw weight is 1.00x. Never-winners earn +5% weight per giveaway entered, capped at +${round.boost}%.`;
+  if (!entrant || !['open', 'closed'].includes(round.status)) {
+    const count = record?.count || entrant?.luckEntries || 0, bonus = count ? luckBonus(count, round.boost) : 0;
+    return `@${message.login} You are not entered in an available draw. ${count} giveaway(s) entered with no recorded wins: +${bonus}% saved draw weight (cap +${round.boost}%). Enter the next giveaway for another +5%, up to the cap. Repeating the keyword adds nothing.`;
+  }
+  const candidates = pool(round, history), total = candidates.reduce((sum, e) => sum + e.weight, 0);
+  return `@${message.login} ${view.luckEntries || 1} giveaway(s) entered with no recorded wins: +${view.bonus}% draw weight (${(1 + view.bonus / 100).toFixed(2)}x; cap +${round.boost}%). Current chance: ${total ? (view.weight / total * 100).toFixed(4) : '0.0000'}%. Once per giveaway; repeating the keyword adds nothing.`;
+}
 function pool(round, history, now = Date.now()) {
   const cutoff = now - round.cooldownMinutes * 60000;
   const recentDraws = round.cooldownMinutes > 0 ? history.filter(h => !h.imported && Date.parse(h.at) > cutoff && Date.parse(h.at) <= now) : [];
@@ -35,13 +60,16 @@ function pool(round, history, now = Date.now()) {
     const coolingDown = round.cooldownMinutes > 0 && (recent.has(e.login) || (e.userId && recentIds.has(e.userId)));
     const inactive = round.mode === 'active' && Date.parse(e.lastActiveAt || e.joinedAt) < (round.closedAt ? Date.parse(round.closedAt) : now) - round.activeMinutes * 60000;
     const blocked = Boolean(e.excluded || coolingDown || inactive);
-    return { ...e, wins, blocked, reason: e.excluded ? 'Excluded' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : wins ? 100 : 100 + round.boost };
+    const bonus = wins ? 0 : luckBonus(e.luckEntries, round.boost);
+    return { ...e, wins, bonus, blocked, reason: e.excluded ? 'Excluded' : coolingDown ? 'Cooldown' : inactive ? 'Inactive' : '', weight: blocked ? 0 : 100 + bonus };
   });
 }
-function enter(round, login, displayName = login, userId = null) {
+function enter(round, login, displayName = login, userId = null, ledger = null) {
   login = normalize(login);
   if (round.status !== 'open' || !validLogin(login) || round.entrants.some(e => e.login === login || (userId && e.userId === userId))) return false;
-  round.entrants.push({ login, displayName: String(displayName).slice(0, 40), userId, joinedAt: new Date().toISOString() });
+  const entrant = { login, displayName: String(displayName).slice(0, 40), userId, joinedAt: new Date().toISOString(), luckEntries: 1 };
+  if (ledger) trackEntry(round, entrant, ledger);
+  round.entrants.push(entrant);
   return true;
 }
 function draw(round, history, rng = randomInt, boost = round.boost) {
@@ -67,4 +95,4 @@ function parseChat(line) {
   const tags = Object.fromEntries((match[1] || '').split(';').map(t => { const i = t.indexOf('='); return [t.slice(0, i), t.slice(i + 1)]; }));
   return { login: normalize(match[2]), channel: normalize(match[3]), text: match[4], userId: tags['user-id'] || null, displayName: tags['display-name'] || match[2] };
 }
-module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText };
+module.exports = { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckBonus, luckReply };

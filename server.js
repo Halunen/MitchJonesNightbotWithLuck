@@ -2,7 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { WebSocket } = require('ws');
-const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText } = require('./engine');
+const { normalize, validLogin, newRound, pool, enter, draw, parseChat, permitted, matchesKeyword, winnerAnnouncement, chatText, trackEntry, luckReply } = require('./engine');
 const port = Number(process.env.PORT || 38741);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -19,6 +19,11 @@ state.round = { mode: 'keyword', activeMinutes: 5, level: 'everyone', ...state.r
 // cooldowns become 24 hours; disabled cooldowns stay disabled.
 if (state.round.cooldownMinutes === undefined) state.round.cooldownMinutes = state.round.cooldown > 0 ? 1440 : 0;
 delete state.round.cooldown;
+state.participations ||= {};
+const participation = () => state.participations[state.channel] ||= {};
+// Older versions did not record participation. Count the saved pool once,
+// without inventing participation in giveaways we never tracked.
+for (const entrant of state.round.entrants) if (!entrant.luckEntries) trackEntry(state.round, entrant, participation());
 let connection = { status: 'offline', message: 'Connect your Twitch channel to get started.' };
 let socket, reconnectTimer, attempts = 0, credentials = null, buffer = '', stopped = false;
 const clients = new Set();
@@ -81,8 +86,10 @@ function connect() {
       message.broadcaster = /badges=[^ ]*broadcaster\/1/.test(line) || message.login === state.channel;
       message.subscriber = /(?:^|;)subscriber=1(?:;| )/.test(line);
       message.messageId = line.match(/(?:^@|;)id=([^; ]+)/)?.[1];
-      const qualifies = permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || matchesKeyword(message.text, state.round.keyword));
-      const accepted = qualifies && enter(state.round, message.login, message.displayName, message.userId);
+      const asksLuck = matchesKeyword(message.text, '!luck');
+      if (asksLuck && connection.status === 'connected' && credentials?.writeEnabled && Date.now() - lastSent >= 1700) sendChat(luckReply(state.round, history(), participation(), message));
+      const qualifies = !asksLuck && permitted(state.round.level, message, state.bots?.[state.channel]?.regulars || []) && (state.round.mode === 'active' || matchesKeyword(message.text, state.round.keyword));
+      const accepted = qualifies && enter(state.round, message.login, message.displayName, message.userId, participation());
       if (qualifies && state.round.status === 'open') {
         const entrant = state.round.entrants.find(e => e.login === message.login || (message.userId && e.userId === message.userId));
         if (entrant) entrant.lastActiveAt = new Date().toISOString();
@@ -133,7 +140,7 @@ async function action(route, body) {
   else if (route === 'demo') {
     disconnect(); state.channel = '__demo__'; state.round = newRound(); chat.length = 0;
     state.round.status = 'open';
-    for (const name of ['pixelpilot', 'moonlit', 'mitchfan', 'cozycat', 'arcaneandy', 'ratjam', 'lilac', 'wowenjoyer', 'toastie', 'luckypanda', 'river', 'starboy']) enter(state.round, name);
+    for (const name of ['pixelpilot', 'moonlit', 'mitchfan', 'cozycat', 'arcaneandy', 'ratjam', 'lilac', 'wowenjoyer', 'toastie', 'luckypanda', 'river', 'starboy']) enter(state.round, name, name, null, participation());
     if (!history().length) history().push({ id: 'demo-seed', login: 'ratjam', displayName: 'ratjam', roundId: 'demo-previous-round', firstWin: true, at: new Date().toISOString(), title: 'Sample previous giveaway' });
     status('demo', 'Sandbox • no Twitch messages are sent.');
   } else if (route === 'luck') {
@@ -148,6 +155,7 @@ async function action(route, body) {
     if (!Number.isInteger(boost) || boost < 0 || boost > 50 || !Number.isInteger(cooldownMinutes) || cooldownMinutes < 0 || cooldownMinutes > 43200) throw new Error('Boost must be 0–50%; winner cooldown must be 0–43,200 minutes (30 days).');
     const keyword = String(body.keyword || '').trim();
     if (!/^\S{1,30}$/.test(keyword)) throw new Error('Use a keyword without spaces (up to 30 characters).');
+    if (matchesKeyword(keyword, '!luck')) throw new Error('!luck is reserved for checking viewer luck. Choose another entry keyword.');
     const mode = body.mode || 'keyword', activeMinutes = Number(body.activeMinutes || 5), level = body.level || 'everyone';
     if (!['keyword', 'active'].includes(mode) || !Number.isInteger(activeMinutes) || activeMinutes < 1 || activeMinutes > 60 || !['everyone', 'subscriber', 'regular', 'moderator', 'owner'].includes(level)) throw new Error('Invalid giveaway type, activity window, or eligibility level.');
     Object.assign(round, { title: String(body.title || 'Community giveaway').trim().slice(0, 100), keyword, boost, cooldownMinutes, mode, activeMinutes, level });

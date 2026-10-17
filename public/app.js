@@ -2,7 +2,7 @@ const $ = id => document.getElementById(id);
 let state, dirty = false, boostDirty = false, rolling = false, pending = false, toastTimer, clockOffsetMs = 0, draftEdited = false, draftWinnerId = null;
 let apiQueue = Promise.resolve();
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const pct = value => `${(value * 100).toFixed(2)}%`;
+const pct = value => `${(value * 100).toFixed(value > 0 && value < .001 ? 4 : 2)}%`;
 const announcement = winner => `Congratulations${winner ? ` @${winner.login}` : ''}! You won.`;
 function elapsedLabel(start) {
   const seconds = Math.max(0, Math.floor((Date.now() + clockOffsetMs - Date.parse(start)) / 1000));
@@ -27,8 +27,8 @@ function api(action, data = {}) {
 }
 function updateBoost() {
   const value = Number($('boost').value);
-  $('boost-badge').textContent = `+${value}%`; $('boost-value').textContent = `${(1 + value / 100).toFixed(2)}×`;
-  $('weight-explanation').textContent = `Users with no recorded wins get ${(1 + value / 100).toFixed(2)}× draw weight. Past winners get 1×.`;
+  $('boost-badge').textContent = `Cap +${value}%`; $('boost-value').textContent = `${(1 + value / 100).toFixed(2)}× max`;
+  $('weight-explanation').textContent = `Never-winners earn +5% draw weight per giveaway entered, up to +${value}% (${(1 + value / 100).toFixed(2)}×). First entry: +${Math.min(5, value)}%. Winning removes the bonus. This is extra weight, not a guaranteed win chance.`;
 }
 function render(next) {
   const changedRound = state?.round.id !== next.round.id;
@@ -89,11 +89,12 @@ function render(next) {
 function renderEntrants() {
   if (!state) return;
   const query = $('search').value.toLowerCase();
-  const preview = state.round.entrants.map(e => ({ ...e, weight: e.blocked ? 0 : e.wins ? 100 : 100 + (boostDirty ? Number($('boost').value) : state.round.boost) }));
+  const cap = boostDirty ? Number($('boost').value) : state.round.boost;
+  const preview = state.round.entrants.map(e => { const bonus = e.wins ? 0 : Math.min(cap, Math.max(1, e.luckEntries || 1) * 5); return { ...e, bonus, weight: e.blocked ? 0 : 100 + bonus }; });
   const total = preview.reduce((sum, e) => sum + e.weight, 0);
   const entrants = preview.map(e => ({ ...e, odds: total ? e.weight / total : 0 })).filter(e => `${e.login} ${e.displayName}`.toLowerCase().includes(query));
   $('empty').hidden = state.round.entrants.length > 0;
-  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'}` : 'No recorded wins'}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}">${e.blocked ? escapeHtml(e.reason) : `${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
+  $('entrants').innerHTML = entrants.slice(0, 500).map(e => `<tr class="${e.blocked ? 'ineligible' : ''}"><td><button class="eligibility-check ${e.blocked ? '' : 'checked'}" data-remove="${escapeHtml(e.login)}" ${['open', 'closed'].includes(state.round.status) ? '' : 'disabled'} aria-label="${e.excluded ? 'Include' : 'Exclude'} ${escapeHtml(e.login)}" aria-pressed="${!e.blocked}">${e.blocked ? '' : '✓'}</button></td><td class="viewer" title="${e.wins} recorded wins">${escapeHtml(e.displayName)}<small>${e.wins ? `${e.wins} past ${e.wins === 1 ? 'win' : 'wins'} · standard luck` : `${e.luckEntries || 1} giveaway${e.luckEntries === 1 || !e.luckEntries ? '' : 's'} entered · no wins`}</small></td><td><span class="weight ${e.wins || e.blocked ? 'normal' : ''}" title="${e.wins ? 'Previous winner: standard weight' : `+5% per giveaway entered, capped at +${cap}%`}">${e.blocked ? escapeHtml(e.reason) : `+${e.bonus}% · ${(e.weight / 100).toFixed(2)}×`}</span></td><td>${pct(e.odds)}</td></tr>`).join('');
   $('pool-footer').textContent = `${entrants.length > 500 ? `Showing 500 of ${entrants.length} matching viewers. ` : ''}Exact chances update as viewers join. ${state.round.entrants.filter(e => e.blocked).length} ineligible.`;
 }
 for (const key of ['title', 'keyword', 'cooldownMinutes']) $(key).addEventListener('input', () => { dirty = true; document.querySelector('.keyword-row p').textContent = `Type ${$('keyword').value} in chat to enter. Not case-sensitive.`; });
@@ -130,6 +131,10 @@ $('connect-form').onsubmit = async event => { event.preventDefault(); if (state?
 $('copy-winner').onclick = async () => { try { await navigator.clipboard.writeText(announcement(state.round.winner)); toast('Winner announcement copied. Paste it into Twitch chat.'); } catch { toast('Clipboard unavailable. Winner: ' + state.round.winner.login); } };
 $('chat-message').oninput = () => { draftEdited = true; };
 $('use-winner-message').onclick = () => { $('chat-message').value = announcement(state.round.winner); draftEdited = false; };
+$('use-luck-rules').onclick = () => {
+  $('chat-message').value = `Giveaway luck: never won here? Earn +5% entry weight each giveaway you enter, up to +${state.round.boost}%. One increase per giveaway, not per message. Winning removes the bonus. Extra weight is not your win chance. Type !luck to check yours.`;
+  draftEdited = true;
+};
 $('chat-send-form').onsubmit = async event => {
   event.preventDefault(); $('send-chat').disabled = true;
   if (await api('chat/send', { message: $('chat-message').value })) { $('chat-message').value = ''; draftEdited = false; toast(state.demo ? 'Demo message added locally.' : 'Message sent to Twitch.'); }
